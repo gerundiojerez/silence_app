@@ -751,7 +751,7 @@ class _CascadeSilenceScreenState extends State<CascadeSilenceScreen>
   DateTime _lastSound = DateTime.fromMillisecondsSinceEpoch(0);
 
   // física calmante
-  final double gravity = 320; // más lento
+  final double gravity = 300; // más lento
   final double damping = 0.992;
   final double wallBounce = 0.92;
   final double restitutionBallBall = 0.85;
