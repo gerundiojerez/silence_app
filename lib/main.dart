@@ -6,7 +6,7 @@ import 'package:audioplayers/audioplayers.dart';
 
 void main() => runApp(const SilenceApp());
 
-enum Experience { ball, cascade }
+enum Experience { ball, cascade, sand }
 
 String experienceLabel(Experience e) {
   switch (e) {
@@ -14,12 +14,15 @@ String experienceLabel(Experience e) {
       return 'Ball';
     case Experience.cascade:
       return 'Cascade';
+      case Experience.sand:
+  return 'Sand';
   }
 }
 
 Experience? parseExperience(String s) {
   if (s == 'ball') return Experience.ball;
   if (s == 'cascade') return Experience.cascade;
+  if (s == 'sand') return Experience.sand;
   return null;
 }
 
@@ -233,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     silencioSeg = prefs.getInt('silencioSeg') ?? 5;
 
     // experiences
-    final expRaw = prefs.getStringList('experiences') ?? ['ball', 'cascade'];
+    final expRaw = prefs.getStringList('experiences') ?? ['ball', 'cascade', 'sand'];
     final set = <Experience>{};
     for (final s in expRaw) {
       final e = parseExperience(s);
@@ -284,16 +287,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> abrirSilencio() async {
     final exp = _pickExperience();
 
-    bool? ok;
+        bool? ok;
     if (exp == Experience.ball) {
       ok = await Navigator.of(context).push<bool>(
         MaterialPageRoute(builder: (_) => BallSilenceScreen(segundos: silencioSeg)),
       );
-    } else {
+    } else if (exp == Experience.cascade) {
       ok = await Navigator.of(context).push<bool>(
         MaterialPageRoute(builder: (_) => CascadeSilenceScreen(segundos: silencioSeg)),
       );
+    } else {
+      ok = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => SandSilenceScreen(segundos: silencioSeg)),
+      );
     }
+
 
     if (ok == true) {
       HapticFeedback.lightImpact();
@@ -524,6 +532,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           _expTile(Experience.ball),
           _expTile(Experience.cascade),
+          _expTile(Experience.sand),
           const SizedBox(height: 8),
           Text(
             'Tip: desmarca para probar una sola experiencia.',
@@ -1102,4 +1111,107 @@ class _CascadePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CascadePainter oldDelegate) => true;
+}
+/// ==================== EXPERIENCE 3: SAND (stub) ====================
+
+class SandSilenceScreen extends StatefulWidget {
+  final int segundos;
+  const SandSilenceScreen({super.key, required this.segundos});
+
+  @override
+  State<SandSilenceScreen> createState() => _SandSilenceScreenState();
+}
+
+class _SandSilenceScreenState extends State<SandSilenceScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: widget.segundos),
+    )..addStatusListener((s) {
+        if (s == AnimationStatus.completed && mounted) {
+          Navigator.of(context).pop(true);
+        }
+      });
+
+    controller.forward();
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B0B10),
+      body: SafeArea(
+        child: Center(
+          child: CustomPaint(
+            painter: _SandBoxPainter(),
+            size: const Size(320, 520),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SandBoxPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // arena
+    final sand = Paint()..color = const Color(0xFFE6D6B8).withOpacity(0.95);
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      const Radius.circular(18),
+    );
+    canvas.drawRRect(rect, sand);
+
+    // marco
+    final frame = Paint()
+      ..color = const Color(0xFF3A2E25).withOpacity(0.9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 14;
+    canvas.drawRRect(rect, frame);
+
+    // borde interior
+    final inner = Paint()
+      ..color = const Color(0xFF6B5444).withOpacity(0.55)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
+
+    final innerRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(10, 10, size.width - 20, size.height - 20),
+      const Radius.circular(14),
+    );
+    canvas.drawRRect(innerRect, inner);
+
+    // texto sutil
+    final tp = TextPainter(
+      text: TextSpan(
+        text: 'Sand (soon)',
+        style: TextStyle(
+          color: const Color(0xFF0B0B10).withOpacity(0.45),
+          fontSize: 18,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    tp.paint(
+      canvas,
+      Offset((size.width - tp.width) / 2, (size.height - tp.height) / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SandBoxPainter oldDelegate) => false;
 }
