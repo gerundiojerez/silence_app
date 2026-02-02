@@ -1126,6 +1126,9 @@ class _SandSilenceScreenState extends State<SandSilenceScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController controller;
 
+  // “arena” simple: lista de trazos (por ahora)
+  final List<_SandStroke> strokes = [];
+
   @override
   void initState() {
     super.initState();
@@ -1141,6 +1144,29 @@ class _SandSilenceScreenState extends State<SandSilenceScreen>
     controller.forward();
   }
 
+  void _addRakeMark(Offset localPos, Size sandSize) {
+    // Clamp dentro de la caja
+    final x = localPos.dx.clamp(0.0, sandSize.width);
+    final y = localPos.dy.clamp(0.0, sandSize.height);
+
+    // Rastrillo horizontal: varias líneas paralelas
+    const int teeth = 7;
+    const double spacing = 6; // separación entre dientes
+    const double halfLen = 34; // largo de cada “diente”
+
+    for (int i = 0; i < teeth; i++) {
+      final dy = (i - (teeth - 1) / 2.0) * spacing;
+      final a = Offset(x - halfLen, y + dy);
+      final b = Offset(x + halfLen, y + dy);
+      strokes.add(_SandStroke(a, b));
+    }
+
+    // Mantén la lista razonable
+    if (strokes.length > 2500) {
+      strokes.removeRange(0, strokes.length - 2500);
+    }
+  }
+
   @override
   void dispose() {
     controller.dispose();
@@ -1153,9 +1179,28 @@ class _SandSilenceScreenState extends State<SandSilenceScreen>
       backgroundColor: const Color(0xFF0B0B10),
       body: SafeArea(
         child: Center(
-          child: CustomPaint(
-            painter: _SandBoxPainter(),
-            size: const Size(320, 520),
+          child: LayoutBuilder(
+            builder: (_, c) {
+              // Caja (tamaño relativo a pantalla)
+              final sandSize = Size(c.maxWidth * 0.88, c.maxHeight * 0.68);
+
+              return GestureDetector(
+                onPanStart: (d) {
+                  _addRakeMark(d.localPosition, sandSize);
+                  setState(() {});
+                },
+                onPanUpdate: (d) {
+                  _addRakeMark(d.localPosition, sandSize);
+                  setState(() {});
+                },
+                child: CustomPaint(
+                  painter: _SandBoxPainter(
+                    strokes: strokes,
+                  ),
+                  size: sandSize,
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -1163,10 +1208,20 @@ class _SandSilenceScreenState extends State<SandSilenceScreen>
   }
 }
 
+class _SandStroke {
+  final Offset a;
+  final Offset b;
+  _SandStroke(this.a, this.b);
+}
+
 class _SandBoxPainter extends CustomPainter {
+  final List<_SandStroke> strokes;
+
+  _SandBoxPainter({required this.strokes});
+
   @override
   void paint(Canvas canvas, Size size) {
-    // arena
+    // arena base
     final sand = Paint()..color = const Color(0xFFE6D6B8).withOpacity(0.95);
     final rect = RRect.fromRectAndRadius(
       Rect.fromLTWH(0, 0, size.width, size.height),
@@ -1193,25 +1248,25 @@ class _SandBoxPainter extends CustomPainter {
     );
     canvas.drawRRect(innerRect, inner);
 
-    // texto sutil
-    final tp = TextPainter(
-      text: TextSpan(
-        text: 'Sand (soon)',
-        style: TextStyle(
-          color: const Color(0xFF0B0B10).withOpacity(0.45),
-          fontSize: 18,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    // recorta para que las marcas no se salgan del marco
+    canvas.save();
+    canvas.clipRRect(innerRect);
 
-    tp.paint(
-      canvas,
-      Offset((size.width - tp.width) / 2, (size.height - tp.height) / 2),
-    );
+    // “marcas” del rastrillo: líneas sutiles más oscuras
+    final mark = Paint()
+      ..color = const Color(0xFF0B0B10).withOpacity(0.18)
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+
+    for (final s in strokes) {
+      canvas.drawLine(s.a, s.b, mark);
+    }
+
+    canvas.restore();
+
+    // sin “soon” ahora
   }
 
   @override
-  bool shouldRepaint(covariant _SandBoxPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _SandBoxPainter oldDelegate) => true;
 }
