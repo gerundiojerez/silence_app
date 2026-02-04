@@ -2,10 +2,27 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
 
-void main() => runApp(const SilenceApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+  // DO NOT await: returns void
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
+
+  runApp(const SilenceApp());
+}
 
 /// =============================================================
 ///  MODES
@@ -213,6 +230,10 @@ LinearGradient kPomodoroBgGradient() => const LinearGradient(
 class SilenceApp extends StatelessWidget {
   const SilenceApp({super.key});
 
+  void _forceFullscreen() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
   ThemeData _theme() {
     final scheme = ColorScheme.fromSeed(
       seedColor: const Color(0xFF7E57C2),
@@ -272,6 +293,7 @@ class SilenceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    _forceFullscreen(); // ✅ fuerza siempre
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Silence',
@@ -718,7 +740,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      // FIX (2): AppBar rendered over same gradient + proper foreground colors
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(
@@ -743,8 +764,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             children: [
               const SizedBox(height: 6),
-
-              // Mode selector
               Row(
                 children: [
                   Text('Mode', style: TextStyle(fontSize: 18, color: onBg)),
@@ -766,8 +785,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 14),
               const Divider(),
               const SizedBox(height: 12),
-
-              // Silence timer
               Row(
                 children: [
                   Text('Silence timer',
@@ -789,8 +806,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   setState(() => silenceSeconds = widget.timeOptions[idx]);
                 },
               ),
-
-              // Pomodoro controls
               if (mode == SessionMode.pomodoro) ...[
                 const SizedBox(height: 10),
                 const Divider(),
@@ -853,12 +868,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (v) => setState(() => pomoCycles = v.round()),
                 ),
               ],
-
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 12),
-
-              // Sound
               Row(
                 children: [
                   Text('Sound', style: TextStyle(fontSize: 18, color: onBg)),
@@ -890,8 +902,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
               const SizedBox(height: 12),
-
-              // Speed
               Row(
                 children: [
                   Text('Speed', style: TextStyle(fontSize: 18, color: onBg)),
@@ -908,7 +918,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 divisions: 22,
                 onChanged: (v) => setState(() => speedMul = v),
               ),
-
               const SizedBox(height: 12),
               Text(
                 'Silence works best when you don’t interact.\nTap to pause is available inside the session.',
@@ -962,11 +971,13 @@ class _BallSessionScreenState extends State<BallSessionScreen>
 
   double x = 0.5, y = 0.5;
   double vx = 0.06, vy = 0.04;
-  Duration? prev;
 
+  // Audio
   AudioPlayer? ambientPlayer;
-  AudioPlayer? bouncePlayer;
   AudioPlayer? bellPlayer;
+
+  // Bounce SFX using Soundpool (prevents ambient from stopping on Samsung/Android)
+  AudioPlayer? bouncePlayer; // bounce SFX (separado del ambient)
 
   DateTime _lastBounceSound = DateTime.fromMillisecondsSinceEpoch(0);
   static const int _minBounceMs = 80;
@@ -977,9 +988,9 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   bool _finishing = false;
   bool _paused = false;
 
-  // --- TIMER ROBUSTO (no depende de lastElapsedDuration) ---
-  int _elapsedMs = 0; // tiempo real acumulado (ms)
-  int _lastTickMs = 0; // marca del último tick (ms) para integrar dt
+  // Robust timer
+  int _elapsedMs = 0;
+  int _lastTickMs = 0;
 
   ui.Image? _noiseImage;
 
@@ -1039,6 +1050,7 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     _initAudio();
     _scheduleTextFades();
     _buildNoiseImage();
+
     _elapsedMs = 0;
     _lastTickMs = 0;
 
@@ -1118,7 +1130,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   }
 
   void _scheduleTextFades() {
-    // >= 10s visible
     Future.delayed(const Duration(milliseconds: 10500), () {
       if (!mounted) return;
       setState(() => showSessionText = false);
@@ -1130,30 +1141,52 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     });
   }
 
+  AudioContext _audioContextForMixing() {
+    return AudioContext(
+      android: AudioContextAndroid(
+        audioFocus: AndroidAudioFocus.none,
+        usageType: AndroidUsageType.game,
+        contentType: AndroidContentType.music,
+        stayAwake: true,
+      ),
+      iOS: AudioContextIOS(
+        category: AVAudioSessionCategory.ambient,
+        options: {AVAudioSessionOptions.mixWithOthers},
+      ),
+    );
+  }
+
   Future<void> _initAudio() async {
     if (!widget.soundOn) return;
 
+    final ctx = _audioContextForMixing();
+
+    // Ambient loop
     try {
       final p = AudioPlayer();
+      await p.setAudioContext(ctx);
       await p.setReleaseMode(ReleaseMode.loop);
       await p.setVolume(widget.volume.clamp(0.0, 0.35));
-      await p.setSource(AssetSource('sounds/ambient.mp3'));
-      await p.resume();
+      await p.play(AssetSource('sounds/ambient.mp3'));
       ambientPlayer = p;
     } catch (_) {}
 
-    try {
-      final p2 = AudioPlayer();
-      await p2.setReleaseMode(ReleaseMode.stop);
-      await p2.setSource(AssetSource('sounds/soft_pop.mp3'));
-      bouncePlayer = p2;
-    } catch (_) {}
-
+    // Bell (keep on audioplayers)
     try {
       final p3 = AudioPlayer();
+      await p3.setAudioContext(ctx);
       await p3.setReleaseMode(ReleaseMode.stop);
       await p3.setSource(AssetSource('sounds/bell.mp3'));
       bellPlayer = p3;
+    } catch (_) {}
+
+    // Bounce SFX (AudioPlayer separado, sin robar el audio focus)
+    try {
+      final p2 = AudioPlayer();
+      await p2.setAudioContext(ctx);
+      await p2.setReleaseMode(ReleaseMode.stop);
+      await p2.setSource(AssetSource('sounds/soft_pop.mp3'));
+      bouncePlayer = p2;
     } catch (_) {}
   }
 
@@ -1162,7 +1195,8 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     if (_paused) return;
     if (bellPlayer == null) return;
 
-    final bellVol = (widget.volume * 0.85).clamp(0.0, 0.30);
+    // A bit longer feel: let it ring with higher volume + ensure restart
+    final bellVol = (widget.volume * 0.95).clamp(0.0, 0.35);
     try {
       await bellPlayer!.setVolume(bellVol);
       await bellPlayer!.seek(Duration.zero);
@@ -1183,7 +1217,8 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     if (now.difference(_lastBounceSound).inMilliseconds < _minBounceMs) return;
     _lastBounceSound = now;
 
-    final bounceVol = (widget.volume * 0.50).clamp(0.0, 0.18);
+    final bounceVol = (widget.volume * 0.50).clamp(0.0, 0.35);
+
     try {
       await bouncePlayer!.setVolume(bounceVol);
       await bouncePlayer!.seek(Duration.zero);
@@ -1196,10 +1231,13 @@ class _BallSessionScreenState extends State<BallSessionScreen>
         );
       } catch (_) {}
     }
+
+    // ✅ “Seguro Samsung”: si igual cortó el ambient, lo reanudamos al tiro
+    try {
+      await ambientPlayer?.resume();
+    } catch (_) {}
   }
 
-  // FIX (1): Pause must NOT reset timer.
-  // Use controller.stop(canceled:false) and resume with controller.forward(from: controller.value)
   Future<void> _togglePause() async {
     if (_finishing) return;
 
@@ -1212,11 +1250,9 @@ class _BallSessionScreenState extends State<BallSessionScreen>
         await ambientPlayer?.pause();
       } catch (_) {}
     } else {
-      // IMPORTANTE: no dependemos de lastElapsedDuration para "retomar"
-      // Reseteamos prev para evitar salto de física
-      prev = Duration(milliseconds: _elapsedMs);
+      // reset physics timing baseline
+      _lastTickMs = 0;
       controller.forward(from: controller.value);
-
       try {
         await ambientPlayer?.resume();
       } catch (_) {}
@@ -1226,7 +1262,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   void _tick() {
     if (_paused) return;
 
-    // En vez de confiar en lastElapsedDuration, integramos el avance con controller.value.
     final totalMs =
         (controller.duration?.inMilliseconds ?? 1000).clamp(1, 1 << 30);
     final nowMs = (controller.value * totalMs).round();
@@ -1234,7 +1269,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     if (_lastTickMs == 0) {
       _lastTickMs = nowMs;
       _elapsedMs = nowMs;
-      prev = Duration(milliseconds: _elapsedMs);
       return;
     }
 
@@ -1247,6 +1281,9 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     final dt = deltaMs / 1000.0;
 
     final elapsedSec = (_elapsedMs / 1000.0).floor();
+
+    // Phase transitions (Pomodoro): when reaching end of current phase,
+    // we play bell and jump to next phase (timer DISPLAY resets because it shows phase remaining)
     if (_phases.length > 1) {
       if (elapsedSec >= _phaseEndSec && _phaseIndex < _phases.length - 1) {
         _playBell();
@@ -1374,7 +1411,7 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     controller.dispose();
     _finishController.dispose();
     ambientPlayer?.dispose();
-    bouncePlayer?.dispose();
+    bouncePlayer?.dispose(); // ✅ agrega esto
     bellPlayer?.dispose();
     _noiseImage?.dispose();
     super.dispose();
@@ -1399,10 +1436,12 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     return HSVColor.fromAHSV(1.0, hue, 0.65, 0.98).toColor();
   }
 
-  int _remainingTotalSeconds() {
-    final total = controller.duration?.inSeconds ?? widget.silenceSeconds;
-    final elapsed = (_elapsedMs ~/ 1000);
-    return (total - elapsed).clamp(0, total);
+  /// (3) Pomodoro timer reset per phase:
+  /// We display remaining time in the CURRENT phase (Focus/Break).
+  int _remainingPhaseSeconds() {
+    final elapsedSec = (_elapsedMs ~/ 1000);
+    final rem = _phaseEndSec - elapsedSec;
+    return rem.clamp(0, max(0, _phaseEndSec - _phaseStartSec));
   }
 
   String _phaseLabel() {
@@ -1411,25 +1450,63 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     return (k == _PhaseKind.focus) ? 'Focus' : 'Break';
   }
 
-  // FIX (3): subtle back arrow to leave session
   Future<void> _confirmExit() async {
     if (_finishing) return;
-
-    // We keep it super minimal: just exit.
-    // Pause audio to avoid clicks.
     try {
       await ambientPlayer?.pause();
     } catch (_) {}
-
     if (!mounted) return;
     Navigator.of(context).pop(false);
+  }
+
+  Widget _timerPill(BuildContext context, int remainingPhase) {
+    final label = _fmtMMSS(remainingPhase);
+    final phase = _phaseLabel();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xAA000000),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.06)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withOpacity(0.92),
+                  letterSpacing: 0.6,
+                ),
+          ),
+          if (widget.mode == SessionMode.pomodoro) ...[
+            const SizedBox(width: 10),
+            Opacity(
+              opacity: 0.70,
+              child: Text(
+                phase,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.white.withOpacity(0.85),
+                    ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final elapsed = _elapsedMs / 1000.0;
     final baseColor = _baseColorAt(elapsed);
-    final remaining = _remainingTotalSeconds();
+
+    // (1) Timer top-centered
+    // (3) Timer resets per phase via remainingPhaseSeconds
+    final remainingPhase = _remainingPhaseSeconds();
 
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
@@ -1465,11 +1542,12 @@ class _BallSessionScreenState extends State<BallSessionScreen>
                   child: const SizedBox.expand(),
                 ),
 
-                // Subtle back arrow (top-left), does not interfere with tap-to-pause
+                // Back arrow
                 Positioned(
-                  top: 10,
+                  top: 8,
                   left: 6,
                   child: SafeArea(
+                    bottom: false,
                     child: IconButton(
                       onPressed: _confirmExit,
                       icon: const Icon(Icons.arrow_back_ios_new_rounded),
@@ -1481,30 +1559,15 @@ class _BallSessionScreenState extends State<BallSessionScreen>
                   ),
                 ),
 
+                // ✅ TIMER: centered + top
                 Positioned(
-                  top: 18,
-                  right: 18,
-                  child: Opacity(
-                    opacity: 0.28,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          _fmtMMSS(remaining),
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        if (widget.mode == SessionMode.pomodoro)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Opacity(
-                              opacity: 0.65,
-                              child: Text(
-                                _phaseLabel(),
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ),
-                          ),
-                      ],
+                  top: 8,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    bottom: false,
+                    child: Center(
+                      child: _timerPill(context, remainingPhase),
                     ),
                   ),
                 ),
