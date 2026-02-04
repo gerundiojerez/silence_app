@@ -8,10 +8,19 @@ import 'package:audioplayers/audioplayers.dart';
 void main() => runApp(const SilenceApp());
 
 /// =============================================================
-///  PHRASES (EN) — short, present-focused (paraphrases)
+///  MODES
 /// =============================================================
+enum SessionMode { silence, pomodoro }
 
-const List<String> kSessionPhrases = [
+String _modeToStr(SessionMode m) =>
+    m == SessionMode.pomodoro ? 'pomodoro' : 'silence';
+SessionMode _modeFromStr(String? s) =>
+    (s == 'pomodoro') ? SessionMode.pomodoro : SessionMode.silence;
+
+/// =============================================================
+///  PHRASES (SILENCE) — present-focused
+/// =============================================================
+const List<String> kSilencePhrases = [
   "Just this breath.",
   "Arrive in this moment.",
   "Nothing to fix.",
@@ -74,6 +83,68 @@ const List<String> kEndPhrases = [
 ];
 
 /// =============================================================
+///  PHRASES (POMODORO) — productivity/motivation (inspired, not quotes)
+/// =============================================================
+const List<String> kPomodoroPhrases = [
+  "Start small. Start now.",
+  "One task. One block.",
+  "Focus is a choice.",
+  "Make it easy to begin.",
+  "Progress over perfection.",
+  "Do the next right thing.",
+  "Show up for this block.",
+  "Momentum is built, not found.",
+  "Your future self will thank you.",
+  "Clarity comes from action.",
+  "Remove one distraction.",
+  "Earn your confidence.",
+  "Tiny steps, real change.",
+  "Commit to the process.",
+  "Work the plan—gently.",
+  "Deep work, simple rules.",
+  "Attention is your superpower.",
+  "Create, then refine.",
+  "Let consistency win.",
+  "Today’s effort counts.",
+  "You don’t need motivation—just start.",
+  "Finish one thing.",
+  "Make it measurable: one block.",
+  "Keep it boring. Keep it done.",
+  "Discipline becomes freedom later.",
+  "Put the phone away.",
+  "Protect this block.",
+  "The first minute matters.",
+  "You’re building trust with yourself.",
+  "Decide, then do.",
+  "Less planning, more doing.",
+  "Small actions beat big intentions.",
+  "Focus is kindness to yourself.",
+  "Don’t negotiate with distractions.",
+  "One page. One paragraph. One line.",
+  "Make the work obvious.",
+  "Stay with the task.",
+  "You can do hard things calmly.",
+  "Be proud of showing up.",
+  "Do it imperfectly, but do it.",
+  "Your job is to begin.",
+  "The timer is your ally.",
+  "This block is a vote for your goals.",
+  "Simple. Repeatable. Done.",
+  "You’re closer than you think.",
+  "Focus now, relax later.",
+  "Energy follows attention.",
+  "Keep going—just a little more.",
+  "Complete the block.",
+  "Done is powerful.",
+];
+
+/// Optional ultra-minimal breath cues (rare)
+const List<String> kBreathCues = [
+  "Inhale… Exhale…",
+  "One breath.",
+];
+
+/// =============================================================
 ///  Daily tracker keys
 /// =============================================================
 const String kPrefDailySeconds = 'dailySeconds';
@@ -98,149 +169,130 @@ String _fmtToday(int totalSeconds) {
 }
 
 /// =============================================================
-///  APP
+///  STYLE — gradients
 /// =============================================================
 
-class SilenceApp extends StatefulWidget {
+LinearGradient kAppGradient() => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color(0xFF121225),
+        Color(0xFF1B1837),
+        Color(0xFF0B0B10),
+      ],
+      stops: [0.0, 0.55, 1.0],
+    );
+
+// Experience background differs per mode:
+LinearGradient kSilenceBgGradient() => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color(0xFF07070C),
+        Color(0xFF0E0C1A),
+        Color(0xFF000000),
+      ],
+      stops: [0.0, 0.55, 1.0],
+    );
+
+LinearGradient kPomodoroBgGradient() => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color(0xFF12060A),
+        Color(0xFF1A0A10),
+        Color(0xFF000000),
+      ],
+      stops: [0.0, 0.55, 1.0],
+    );
+
+/// =============================================================
+///  APP (always dark)
+/// =============================================================
+
+class SilenceApp extends StatelessWidget {
   const SilenceApp({super.key});
-  @override
-  State<SilenceApp> createState() => _SilenceAppState();
-}
 
-class _SilenceAppState extends State<SilenceApp> {
-  bool darkMode = true;
-  bool loaded = false;
+  ThemeData _theme() {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF7E57C2),
+      brightness: Brightness.dark,
+    );
 
-  @override
-  void initState() {
-    super.initState();
-    _loadTheme();
-  }
-
-  Future<void> _loadTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() {
-      darkMode = prefs.getBool('darkMode') ?? true;
-      loaded = true;
-    });
-  }
-
-  Future<void> _setTheme(bool v) async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() => darkMode = v);
-    await prefs.setBool('darkMode', v);
+    return ThemeData(
+      brightness: Brightness.dark,
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: const Color(0xFF0B0B10),
+      fontFamilyFallback: const ['Inter', 'SF Pro Display', 'Roboto'],
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+      ),
+      textTheme: TextTheme(
+        displayLarge: TextStyle(
+          fontSize: 52,
+          fontWeight: FontWeight.w300,
+          letterSpacing: 1.2,
+          height: 1.05,
+          color: scheme.onBackground,
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w300,
+          letterSpacing: 0.7,
+          height: 1.25,
+          color: scheme.onBackground.withOpacity(0.86),
+        ),
+        titleLarge: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w400,
+          letterSpacing: 0.6,
+          height: 1.25,
+          color: scheme.onBackground.withOpacity(0.90),
+        ),
+        bodyLarge: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w300,
+          letterSpacing: 0.55,
+          height: 1.55,
+          color: scheme.onBackground.withOpacity(0.82),
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w300,
+          letterSpacing: 0.45,
+          height: 1.45,
+          color: scheme.onBackground.withOpacity(0.62),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!loaded) {
-      return const MaterialApp(
-        home: Scaffold(body: Center(child: CircularProgressIndicator())),
-        debugShowCheckedModeBanner: false,
-      );
-    }
-
-    ThemeData baseTheme(Brightness b, Color seed, Color bg) {
-      final scheme = ColorScheme.fromSeed(seedColor: seed, brightness: b);
-      final onBg = scheme.onBackground;
-
-      return ThemeData(
-        brightness: b,
-        useMaterial3: true,
-        colorScheme: scheme,
-        scaffoldBackgroundColor: bg,
-        fontFamilyFallback: const ['Inter', 'SF Pro Display', 'Roboto'],
-        textTheme: TextTheme(
-          displayLarge: TextStyle(
-            fontSize: 52,
-            fontWeight: FontWeight.w300,
-            letterSpacing: 1.2,
-            height: 1.05,
-            color: onBg,
-          ),
-          headlineMedium: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w300,
-            letterSpacing: 0.7,
-            height: 1.25,
-            color: onBg.withOpacity(0.86),
-          ),
-          titleLarge: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w400,
-            letterSpacing: 0.6,
-            height: 1.25,
-            color: onBg.withOpacity(0.90),
-          ),
-          bodyLarge: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w300,
-            letterSpacing: 0.55,
-            height: 1.55,
-            color: onBg.withOpacity(0.82),
-          ),
-          bodyMedium: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w300,
-            letterSpacing: 0.45,
-            height: 1.45,
-            color: onBg.withOpacity(0.62),
-          ),
-        ),
-      );
-    }
-
-    final light = baseTheme(
-      Brightness.light,
-      const Color(0xFF9B8CFF),
-      const Color(0xFFF6F3FF),
-    );
-
-    final dark = baseTheme(
-      Brightness.dark,
-      const Color(0xFF7E57C2),
-      const Color(0xFF0B0B10),
-    );
-
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Silence',
-      theme: light,
-      darkTheme: dark,
-      themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
-      home: StartScreen(
-        darkMode: darkMode,
-        onSetTheme: _setTheme,
-      ),
+      theme: _theme(),
+      home: const StartScreen(),
     );
   }
 }
 
 /// =============================================================
-///  START
+///  START (uses app gradient)
 /// =============================================================
 
 class StartScreen extends StatelessWidget {
-  final bool darkMode;
-  final Future<void> Function(bool) onSetTheme;
-
-  const StartScreen({
-    super.key,
-    required this.darkMode,
-    required this.onSetTheme,
-  });
+  const StartScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     void go() {
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => HomeScreen(
-            darkMode: darkMode,
-            onSetTheme: onSetTheme,
-          ),
-        ),
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     }
 
@@ -251,18 +303,7 @@ class StartScreen extends StatelessWidget {
       builder: (context, t, child) => Opacity(opacity: t, child: child),
       child: Scaffold(
         body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF121225),
-                Color(0xFF1B1837),
-                Color(0xFF0B0B10),
-              ],
-              stops: [0.0, 0.55, 1.0],
-            ),
-          ),
+          decoration: BoxDecoration(gradient: kAppGradient()),
           child: SafeArea(
             child: Center(
               child: Padding(
@@ -300,19 +341,10 @@ class StartScreen extends StatelessWidget {
 
 /// =============================================================
 ///  HOME
-///  - Adds: Today silence marker (resets daily)
-///  - Extends: time options
 /// =============================================================
 
 class HomeScreen extends StatefulWidget {
-  final bool darkMode;
-  final Future<void> Function(bool) onSetTheme;
-
-  const HomeScreen({
-    super.key,
-    required this.darkMode,
-    required this.onSetTheme,
-  });
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -321,8 +353,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool loaded = false;
 
-  // Extended options:
-  // 30s, 45s, 1m, 1.5m, 2m, 5m, 10m, 20m, 30m
   static const List<int> timeOptions = [
     30,
     45,
@@ -339,6 +369,11 @@ class _HomeScreenState extends State<HomeScreen> {
   bool soundOn = true;
   double volume = 0.18;
   double speedMul = 1.0;
+
+  SessionMode mode = SessionMode.silence;
+  int pomoFocusMin = 25;
+  int pomoBreakMin = 5;
+  int pomoCycles = 4;
 
   int todaySeconds = 0;
 
@@ -359,7 +394,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-
     await _ensureDailyFresh(prefs);
 
     final savedSeconds = prefs.getInt('silenceSeconds');
@@ -368,6 +402,11 @@ class _HomeScreenState extends State<HomeScreen> {
     soundOn = prefs.getBool('soundOn') ?? true;
     volume = (prefs.getDouble('volume') ?? 0.18).clamp(0.0, 0.35);
     speedMul = (prefs.getDouble('speedMul') ?? 1.0).clamp(0.7, 1.25);
+
+    mode = _modeFromStr(prefs.getString('mode'));
+    pomoFocusMin = (prefs.getInt('pomoFocusMin') ?? 25).clamp(5, 60);
+    pomoBreakMin = (prefs.getInt('pomoBreakMin') ?? 5).clamp(3, 30);
+    pomoCycles = (prefs.getInt('pomoCycles') ?? 4).clamp(1, 8);
 
     todaySeconds = prefs.getInt(kPrefDailySeconds) ?? 0;
 
@@ -381,6 +420,11 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setBool('soundOn', soundOn);
     await prefs.setDouble('volume', volume);
     await prefs.setDouble('speedMul', speedMul);
+
+    await prefs.setString('mode', _modeToStr(mode));
+    await prefs.setInt('pomoFocusMin', pomoFocusMin);
+    await prefs.setInt('pomoBreakMin', pomoBreakMin);
+    await prefs.setInt('pomoCycles', pomoCycles);
   }
 
   Future<void> _addToday(int secondsToAdd) async {
@@ -393,13 +437,26 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => todaySeconds = next);
   }
 
-  Future<void> openSilence() async {
+  int _plannedSessionSeconds() {
+    if (mode == SessionMode.pomodoro) {
+      final focus = pomoFocusMin * 60;
+      final brk = pomoBreakMin * 60;
+      return pomoCycles * (focus + brk);
+    }
+    return silenceSeconds;
+  }
+
+  Future<void> openSession() async {
     final result = await Navigator.of(context).push<bool>(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 520),
         reverseTransitionDuration: const Duration(milliseconds: 420),
-        pageBuilder: (_, __, ___) => BallSilenceScreen(
-          segundos: silenceSeconds,
+        pageBuilder: (_, __, ___) => BallSessionScreen(
+          mode: mode,
+          silenceSeconds: silenceSeconds,
+          pomodoroFocusMin: pomoFocusMin,
+          pomodoroBreakMin: pomoBreakMin,
+          pomodoroCycles: pomoCycles,
           soundOn: soundOn,
           volume: volume,
           speedMul: speedMul,
@@ -418,10 +475,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (result == true) {
-      // Session completed => add configured seconds
-      await _addToday(silenceSeconds);
+      await _addToday(_plannedSessionSeconds());
     } else {
-      // Still ensure daily reset if date changed while in session.
       final prefs = await SharedPreferences.getInstance();
       await _ensureDailyFresh(prefs);
       final v = prefs.getInt(kPrefDailySeconds) ?? 0;
@@ -435,27 +490,33 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(
         builder: (_) => SettingsScreen(
           initialSeconds: silenceSeconds,
-          initialDarkMode: widget.darkMode,
           initialSoundOn: soundOn,
           initialVolume: volume,
           initialSpeedMul: speedMul,
           timeOptions: timeOptions,
+          initialMode: mode,
+          initialPomoFocusMin: pomoFocusMin,
+          initialPomoBreakMin: pomoBreakMin,
+          initialPomoCycles: pomoCycles,
         ),
       ),
     );
     if (result == null) return;
 
     setState(() {
-      silenceSeconds = result.seconds;
+      silenceSeconds = result.silenceSeconds;
       soundOn = result.soundOn;
       volume = result.volume.clamp(0.0, 0.35);
       speedMul = result.speedMul.clamp(0.7, 1.25);
+
+      mode = result.mode;
+      pomoFocusMin = result.pomoFocusMin;
+      pomoBreakMin = result.pomoBreakMin;
+      pomoCycles = result.pomoCycles;
     });
 
     await _savePrefs();
-    await widget.onSetTheme(result.darkMode);
 
-    // refresh daily in case date changed
     final prefs = await SharedPreferences.getInstance();
     await _ensureDailyFresh(prefs);
     final v = prefs.getInt(kPrefDailySeconds) ?? 0;
@@ -465,25 +526,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!loaded)
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (!loaded) {
+      return Scaffold(
+        body: Container(
+          decoration: BoxDecoration(gradient: kAppGradient()),
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
 
-    final c = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
 
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              c.background,
-              c.background.withOpacity(0.88),
-              c.background.withOpacity(0.78),
-            ],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: kAppGradient()),
         child: SafeArea(
           child: Column(
             children: [
@@ -503,8 +559,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-
-              // (4) Today marker — small, subtle, resets daily
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Opacity(
@@ -515,16 +569,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-
               const Spacer(),
               Text('Enter the present.',
                   style: text.headlineMedium, textAlign: TextAlign.center),
               const SizedBox(height: 10),
-              Text('No tapping needed.',
-                  style: text.bodyMedium, textAlign: TextAlign.center),
+              Text(
+                mode == SessionMode.pomodoro
+                    ? 'Focus gently. Rest briefly.'
+                    : 'No tapping needed.',
+                style: text.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 22),
               FilledButton(
-                onPressed: openSilence,
+                onPressed: openSession,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   child: Text('Enter'),
@@ -545,37 +603,51 @@ class _HomeScreenState extends State<HomeScreen> {
 /// =============================================================
 
 class SettingsResult {
-  final int seconds;
-  final bool darkMode;
+  final int silenceSeconds;
   final bool soundOn;
   final double volume;
   final double speedMul;
 
+  final SessionMode mode;
+  final int pomoFocusMin;
+  final int pomoBreakMin;
+  final int pomoCycles;
+
   SettingsResult({
-    required this.seconds,
-    required this.darkMode,
+    required this.silenceSeconds,
     required this.soundOn,
     required this.volume,
     required this.speedMul,
+    required this.mode,
+    required this.pomoFocusMin,
+    required this.pomoBreakMin,
+    required this.pomoCycles,
   });
 }
 
 class SettingsScreen extends StatefulWidget {
   final int initialSeconds;
-  final bool initialDarkMode;
   final bool initialSoundOn;
   final double initialVolume;
   final double initialSpeedMul;
   final List<int> timeOptions;
 
+  final SessionMode initialMode;
+  final int initialPomoFocusMin;
+  final int initialPomoBreakMin;
+  final int initialPomoCycles;
+
   const SettingsScreen({
     super.key,
     required this.initialSeconds,
-    required this.initialDarkMode,
     required this.initialSoundOn,
     required this.initialVolume,
     required this.initialSpeedMul,
     required this.timeOptions,
+    required this.initialMode,
+    required this.initialPomoFocusMin,
+    required this.initialPomoBreakMin,
+    required this.initialPomoCycles,
   });
 
   @override
@@ -583,20 +655,28 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  late int seconds;
-  late bool darkMode;
+  late int silenceSeconds;
   late bool soundOn;
   late double volume;
   late double speedMul;
 
+  late SessionMode mode;
+  late int pomoFocusMin;
+  late int pomoBreakMin;
+  late int pomoCycles;
+
   @override
   void initState() {
     super.initState();
-    seconds = widget.initialSeconds;
-    darkMode = widget.initialDarkMode;
+    silenceSeconds = widget.initialSeconds;
     soundOn = widget.initialSoundOn;
     volume = widget.initialVolume.clamp(0.0, 0.35);
     speedMul = widget.initialSpeedMul.clamp(0.7, 1.25);
+
+    mode = widget.initialMode;
+    pomoFocusMin = widget.initialPomoFocusMin.clamp(5, 60);
+    pomoBreakMin = widget.initialPomoBreakMin.clamp(3, 30);
+    pomoCycles = widget.initialPomoCycles.clamp(1, 8);
   }
 
   String fmtMMSS(int s) {
@@ -619,11 +699,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void saveAndExit() {
     Navigator.of(context).pop(
       SettingsResult(
-        seconds: seconds,
-        darkMode: darkMode,
+        silenceSeconds: silenceSeconds,
         soundOn: soundOn,
         volume: volume,
         speedMul: speedMul,
+        mode: mode,
+        pomoFocusMin: pomoFocusMin,
+        pomoBreakMin: pomoBreakMin,
+        pomoCycles: pomoCycles,
       ),
     );
   }
@@ -631,136 +714,233 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final onBg = Theme.of(context).colorScheme.onBackground;
-    final timeIndex = secondsToIndex(seconds);
+    final timeIndex = secondsToIndex(silenceSeconds);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Settings'),
         actions: [
           TextButton(onPressed: saveAndExit, child: const Text('Save')),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Row(
-            children: [
-              Text('Timer', style: TextStyle(fontSize: 18, color: onBg)),
-              const Spacer(),
-              Text(fmtMMSS(seconds),
-                  style: TextStyle(fontSize: 18, color: onBg)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Slider(
-            value: timeIndex.toDouble(),
-            min: 0,
-            max: (widget.timeOptions.length - 1).toDouble(),
-            divisions: widget.timeOptions.length - 1,
-            label: fmtMMSS(seconds),
-            onChanged: (v) {
-              final idx = v.round().clamp(0, widget.timeOptions.length - 1);
-              setState(() => seconds = widget.timeOptions[idx]);
-            },
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Text('Night mode', style: TextStyle(fontSize: 18, color: onBg)),
-              const Spacer(),
-              Switch(
-                value: darkMode,
-                onChanged: (v) => setState(() => darkMode = v),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          const Divider(),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text('Sound', style: TextStyle(fontSize: 18, color: onBg)),
-              const Spacer(),
-              Switch(
-                value: soundOn,
-                onChanged: (v) => setState(() => soundOn = v),
-              ),
-            ],
-          ),
-          if (soundOn) ...[
-            const SizedBox(height: 8),
+      body: Container(
+        decoration: BoxDecoration(gradient: kAppGradient()),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Mode selector
             Row(
               children: [
-                Text('Volume',
-                    style:
-                        TextStyle(fontSize: 16, color: onBg.withOpacity(0.9))),
+                Text('Mode', style: TextStyle(fontSize: 18, color: onBg)),
                 const Spacer(),
-                Text('${(volume * 100).round()}%',
-                    style: TextStyle(color: onBg.withOpacity(0.8))),
+                SegmentedButton<SessionMode>(
+                  segments: const [
+                    ButtonSegment(
+                        value: SessionMode.silence, label: Text('Silence')),
+                    ButtonSegment(
+                        value: SessionMode.pomodoro, label: Text('Pomodoro')),
+                  ],
+                  selected: {mode},
+                  onSelectionChanged: (s) {
+                    setState(() => mode = s.first);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const Divider(),
+            const SizedBox(height: 12),
+
+            // Silence timer
+            Row(
+              children: [
+                Text('Silence timer',
+                    style: TextStyle(fontSize: 18, color: onBg)),
+                const Spacer(),
+                Text(fmtMMSS(silenceSeconds),
+                    style: TextStyle(fontSize: 18, color: onBg)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Slider(
+              value: timeIndex.toDouble(),
+              min: 0,
+              max: (widget.timeOptions.length - 1).toDouble(),
+              divisions: widget.timeOptions.length - 1,
+              label: fmtMMSS(silenceSeconds),
+              onChanged: (v) {
+                final idx = v.round().clamp(0, widget.timeOptions.length - 1);
+                setState(() => silenceSeconds = widget.timeOptions[idx]);
+              },
+            ),
+
+            // Pomodoro controls
+            if (mode == SessionMode.pomodoro) ...[
+              const SizedBox(height: 10),
+              const Divider(),
+              const SizedBox(height: 12),
+              Text('Pomodoro',
+                  style:
+                      TextStyle(fontSize: 18, color: onBg.withOpacity(0.95))),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Text('Focus', style: TextStyle(fontSize: 16, color: onBg)),
+                  const Spacer(),
+                  Text('$pomoFocusMin min',
+                      style: TextStyle(
+                          fontSize: 16, color: onBg.withOpacity(0.8))),
+                ],
+              ),
+              Slider(
+                value: pomoFocusMin.toDouble(),
+                min: 5,
+                max: 60,
+                divisions: 11,
+                label: '$pomoFocusMin',
+                onChanged: (v) => setState(() => pomoFocusMin = v.round()),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Text('Break', style: TextStyle(fontSize: 16, color: onBg)),
+                  const Spacer(),
+                  Text('$pomoBreakMin min',
+                      style: TextStyle(
+                          fontSize: 16, color: onBg.withOpacity(0.8))),
+                ],
+              ),
+              Slider(
+                value: pomoBreakMin.toDouble(),
+                min: 3,
+                max: 30,
+                divisions: 9,
+                label: '$pomoBreakMin',
+                onChanged: (v) => setState(() => pomoBreakMin = v.round()),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Text('Cycles', style: TextStyle(fontSize: 16, color: onBg)),
+                  const Spacer(),
+                  Text('$pomoCycles',
+                      style: TextStyle(
+                          fontSize: 16, color: onBg.withOpacity(0.8))),
+                ],
+              ),
+              Slider(
+                value: pomoCycles.toDouble(),
+                min: 1,
+                max: 8,
+                divisions: 7,
+                label: '$pomoCycles',
+                onChanged: (v) => setState(() => pomoCycles = v.round()),
+              ),
+            ],
+
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 12),
+
+            // Sound
+            Row(
+              children: [
+                Text('Sound', style: TextStyle(fontSize: 18, color: onBg)),
+                const Spacer(),
+                Switch(
+                  value: soundOn,
+                  onChanged: (v) => setState(() => soundOn = v),
+                ),
+              ],
+            ),
+            if (soundOn) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text('Volume',
+                      style: TextStyle(
+                          fontSize: 16, color: onBg.withOpacity(0.9))),
+                  const Spacer(),
+                  Text('${(volume * 100).round()}%',
+                      style: TextStyle(color: onBg.withOpacity(0.8))),
+                ],
+              ),
+              Slider(
+                value: volume,
+                min: 0.0,
+                max: 0.35,
+                divisions: 35,
+                onChanged: (v) => setState(() => volume = v),
+              ),
+            ],
+            const SizedBox(height: 12),
+
+            // Speed
+            Row(
+              children: [
+                Text('Speed', style: TextStyle(fontSize: 18, color: onBg)),
+                const Spacer(),
+                Text(speedLabel(speedMul),
+                    style:
+                        TextStyle(fontSize: 16, color: onBg.withOpacity(0.8))),
               ],
             ),
             Slider(
-              value: volume,
-              min: 0.0,
-              max: 0.35,
-              divisions: 35,
-              onChanged: (v) => setState(() => volume = v),
+              value: speedMul,
+              min: 0.7,
+              max: 1.25,
+              divisions: 22,
+              onChanged: (v) => setState(() => speedMul = v),
+            ),
+
+            const SizedBox(height: 12),
+            Text(
+              'Silence works best when you don’t interact.\nTap to pause is available inside the session.',
+              style: TextStyle(color: onBg.withOpacity(0.6)),
             ),
           ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text('Speed', style: TextStyle(fontSize: 18, color: onBg)),
-              const Spacer(),
-              Text(speedLabel(speedMul),
-                  style: TextStyle(fontSize: 16, color: onBg.withOpacity(0.8))),
-            ],
-          ),
-          Slider(
-            value: speedMul,
-            min: 0.7,
-            max: 1.25,
-            divisions: 22,
-            onChanged: (v) => setState(() => speedMul = v),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Silence works best when you don’t interact.\nKeep sound soft.',
-            style: TextStyle(color: onBg.withOpacity(0.6)),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
 /// =============================================================
-///  EXPERIENCE: BALL
-///  Changes:
-///   (1) Color cycling, premium
-///   (2) Bounce sound every bounce
+///  EXPERIENCE: BALL SESSION (Silence + Pomodoro)
 /// =============================================================
 
-class BallSilenceScreen extends StatefulWidget {
-  final int segundos;
+class BallSessionScreen extends StatefulWidget {
+  final SessionMode mode;
+
+  final int silenceSeconds;
+
+  final int pomodoroFocusMin;
+  final int pomodoroBreakMin;
+  final int pomodoroCycles;
+
   final bool soundOn;
   final double volume;
   final double speedMul;
 
-  const BallSilenceScreen({
+  const BallSessionScreen({
     super.key,
-    required this.segundos,
+    required this.mode,
+    required this.silenceSeconds,
+    required this.pomodoroFocusMin,
+    required this.pomodoroBreakMin,
+    required this.pomodoroCycles,
     required this.soundOn,
     required this.volume,
     required this.speedMul,
   });
 
   @override
-  State<BallSilenceScreen> createState() => _BallSilenceScreenState();
+  State<BallSessionScreen> createState() => _BallSessionScreenState();
 }
 
-class _BallSilenceScreenState extends State<BallSilenceScreen>
-    with SingleTickerProviderStateMixin {
+class _BallSessionScreenState extends State<BallSessionScreen>
+    with TickerProviderStateMixin {
   late final AnimationController controller;
   final rnd = Random();
 
@@ -770,59 +950,172 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
 
   AudioPlayer? ambientPlayer;
   AudioPlayer? bouncePlayer;
+  AudioPlayer? bellPlayer;
 
   DateTime _lastBounceSound = DateTime.fromMillisecondsSinceEpoch(0);
-  static const int _minBounceMs =
-      80; // short throttle to prevent double-fire per frame
-
-  late final String sessionPhrase;
-  late final String endPhrase;
+  static const int _minBounceMs = 80;
 
   bool showSessionText = true;
   bool showEndText = false;
-  bool _popping = false;
+  bool showTapHint = true;
+  bool _finishing = false;
+  bool _paused = false;
 
   ui.Image? _noiseImage;
 
-  // Color cycle settings
-  static const double _cycleSeconds = 14.0; // not too slow, not too fast
+  // Cycle seconds for hue drift (kept, but now used as base for internal gradients)
+  static const double _cycleSeconds = 14.0;
+
+  // Phase control (pomodoro)
+  late final List<_Phase> _phases;
+  int _phaseIndex = 0;
+  int _phaseStartSec = 0;
+  int _phaseEndSec = 0;
+
+  // Text for current phase (changes per phase)
+  String _headline = '';
+  String _endline = '';
+
+  // Soft completion animation
+  double _finishT = 0.0; // 0 -> 1
+  late final AnimationController _finishController;
 
   @override
   void initState() {
     super.initState();
 
-    sessionPhrase = kSessionPhrases[rnd.nextInt(kSessionPhrases.length)];
-    endPhrase = kEndPhrases[rnd.nextInt(kEndPhrases.length)];
+    _phases = _buildPhases();
+    _setPhase(0);
 
+    // random initial position
     x = rnd.nextDouble() * 0.6 + 0.2;
     y = rnd.nextDouble() * 0.6 + 0.2;
 
+    // Speed: +25% default overall
     final spMul = widget.speedMul.clamp(0.7, 1.25);
-    final speed = (0.05 + rnd.nextDouble() * 0.06) * spMul;
+    final baseBoost = 1.25;
+    final modeBoost = widget.mode == SessionMode.pomodoro ? 1.12 : 1.0;
+    final speed =
+        (0.05 + rnd.nextDouble() * 0.06) * spMul * baseBoost * modeBoost;
+
     final angle = rnd.nextDouble() * pi * 2;
     vx = cos(angle) * speed;
     vy = sin(angle) * speed;
 
+    final totalSeconds =
+        _phases.isNotEmpty ? _phases.last.endSec : widget.silenceSeconds;
+
     controller = AnimationController(
       vsync: this,
-      duration: Duration(seconds: widget.segundos),
+      duration: Duration(seconds: max(1, totalSeconds)),
     )
       ..addListener(_tick)
       ..addStatusListener((s) {
-        if (s == AnimationStatus.completed) _onComplete();
+        if (s == AnimationStatus.completed) _onCompleteSession();
+      });
+
+    _finishController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650),
+    )..addListener(() {
+        setState(() =>
+            _finishT = Curves.easeOutCubic.transform(_finishController.value));
       });
 
     _initAudio();
-    _scheduleSessionTextFade();
+    _scheduleTextFades();
     _buildNoiseImage();
 
     controller.forward();
   }
 
-  void _scheduleSessionTextFade() {
-    Future.delayed(const Duration(milliseconds: 1200), () {
+  List<_Phase> _buildPhases() {
+    if (widget.mode == SessionMode.silence) {
+      return [
+        _Phase(
+          kind: _PhaseKind.silence,
+          label: 'Silence',
+          startSec: 0,
+          endSec: widget.silenceSeconds,
+        ),
+      ];
+    }
+
+    final focus = widget.pomodoroFocusMin * 60;
+    final brk = widget.pomodoroBreakMin * 60;
+
+    final phases = <_Phase>[];
+    int t = 0;
+    for (int i = 0; i < widget.pomodoroCycles; i++) {
+      phases.add(_Phase(
+        kind: _PhaseKind.focus,
+        label: 'Focus',
+        startSec: t,
+        endSec: t + focus,
+      ));
+      t += focus;
+      phases.add(_Phase(
+        kind: _PhaseKind.breakk,
+        label: 'Break',
+        startSec: t,
+        endSec: t + brk,
+      ));
+      t += brk;
+    }
+    return phases;
+  }
+
+  void _setPhase(int idx) {
+    _phaseIndex = idx.clamp(0, _phases.length - 1);
+    _phaseStartSec = _phases[_phaseIndex].startSec;
+    _phaseEndSec = _phases[_phaseIndex].endSec;
+
+    // Headline text is a phrase per phase (10s+)
+    final phrase = _pickPhasePhrase(_phases[_phaseIndex].kind);
+    _headline = phrase;
+    _endline = kEndPhrases[rnd.nextInt(kEndPhrases.length)];
+
+    // Show text each time phase starts (but keep it subtle)
+    showSessionText = true;
+  }
+
+  String _pickPhasePhrase(_PhaseKind kind) {
+    // Rare breath cue at very beginning (minimal)
+    final maybeBreath = (rnd.nextDouble() < 0.14);
+    if (_phaseIndex == 0 && maybeBreath) {
+      return kBreathCues[rnd.nextInt(kBreathCues.length)];
+    }
+
+    if (widget.mode == SessionMode.silence) {
+      return kSilencePhrases[rnd.nextInt(kSilencePhrases.length)];
+    }
+
+    if (kind == _PhaseKind.breakk) {
+      // keep breaks calm; still “productivity adjacent”
+      const breakHints = [
+        "Stand up. Breathe.",
+        "Release your shoulders.",
+        "Rest your eyes for a moment.",
+        "Small reset. Back soon.",
+        "Let your mind soften.",
+      ];
+      return breakHints[rnd.nextInt(breakHints.length)];
+    }
+
+    return kPomodoroPhrases[rnd.nextInt(kPomodoroPhrases.length)];
+  }
+
+  void _scheduleTextFades() {
+    // Keep phrase visible at least 10 seconds
+    Future.delayed(const Duration(milliseconds: 10500), () {
       if (!mounted) return;
       setState(() => showSessionText = false);
+    });
+
+    // Tap hint: subtle, goes away
+    Future.delayed(const Duration(milliseconds: 9000), () {
+      if (!mounted) return;
+      setState(() => showTapHint = false);
     });
   }
 
@@ -846,10 +1139,36 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
       await p2.setSource(AssetSource('sounds/soft_pop.mp3'));
       bouncePlayer = p2;
     } catch (_) {}
+
+    // Bell
+    try {
+      final p3 = AudioPlayer();
+      await p3.setReleaseMode(ReleaseMode.stop);
+      await p3.setSource(AssetSource('sounds/bell.mp3'));
+      bellPlayer = p3;
+    } catch (_) {}
+  }
+
+  Future<void> _playBell() async {
+    if (!widget.soundOn) return;
+    if (_paused) return;
+    if (bellPlayer == null) return;
+
+    final bellVol = (widget.volume * 0.85).clamp(0.0, 0.30);
+    try {
+      await bellPlayer!.setVolume(bellVol);
+      await bellPlayer!.seek(Duration.zero);
+      await bellPlayer!.resume();
+    } catch (_) {
+      try {
+        await bellPlayer!.play(AssetSource('sounds/bell.mp3'), volume: bellVol);
+      } catch (_) {}
+    }
   }
 
   Future<void> _playBounce() async {
     if (!widget.soundOn) return;
+    if (_paused) return;
     if (bouncePlayer == null) return;
 
     final now = DateTime.now();
@@ -871,41 +1190,72 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     }
   }
 
-  Future<void> _onComplete() async {
-    if (_popping) return;
-    _popping = true;
+  void _togglePause() async {
+    if (_finishing) return;
 
-    if (!mounted) return;
-    setState(() {
-      showEndText = true;
-      showSessionText = false;
-    });
+    setState(() => _paused = !_paused);
 
-    await Future.delayed(const Duration(milliseconds: 2200));
-    if (!mounted) return;
-    Navigator.of(context).pop(true);
+    if (_paused) {
+      controller.stop();
+      try {
+        await ambientPlayer?.pause();
+      } catch (_) {}
+    } else {
+      // reset dt to avoid a jump
+      prev = controller.lastElapsedDuration ?? Duration.zero;
+      controller.forward();
+      try {
+        await ambientPlayer?.resume();
+      } catch (_) {}
+    }
   }
 
   void _tick() {
+    if (_paused) return;
+
     final now = controller.lastElapsedDuration ?? Duration.zero;
     final p = prev ?? now;
     final dt = (now - p).inMicroseconds / 1e6;
     prev = now;
     if (dt <= 0) return;
 
-    final spMul = widget.speedMul.clamp(0.7, 1.25);
+    // Phase management for pomodoro
+    final elapsedSec = (now.inMilliseconds / 1000.0).floor();
+    if (_phases.length > 1) {
+      if (elapsedSec >= _phaseEndSec && _phaseIndex < _phases.length - 1) {
+        // phase transition
+        _playBell();
+        _setPhase(_phaseIndex + 1);
+        // re-schedule phrase fade for this phase (simple: keep visible 10s)
+        showSessionText = true;
+        Future.delayed(const Duration(milliseconds: 10500), () {
+          if (!mounted) return;
+          if (_paused) return;
+          setState(() => showSessionText = false);
+        });
+      }
+    }
 
+    // Speed multipliers
+    final spMul = widget.speedMul.clamp(0.7, 1.25);
+    final baseBoost = 1.25;
+    final phaseBoost = _currentPhaseKind() == _PhaseKind.focus ? 1.10 : 1.0;
+    final modeBoost = widget.mode == SessionMode.pomodoro ? 1.08 : 1.0;
+
+    final eff = spMul * baseBoost * modeBoost * phaseBoost;
+
+    // Motion physics
     final damp = pow(0.995, dt * 60).toDouble();
     vx *= damp;
     vy *= damp;
 
-    final wobble = 0.010 * spMul;
+    final wobble = 0.010 * eff;
     vx += (rnd.nextDouble() - 0.5) * wobble * dt;
     vy += (rnd.nextDouble() - 0.5) * wobble * dt;
 
     final sp = sqrt(vx * vx + vy * vy);
-    final minSp = 0.04 * spMul;
-    final maxSp = 0.12 * spMul;
+    final minSp = 0.04 * eff;
+    final maxSp = 0.12 * eff;
     if (sp < minSp) {
       final k = minSp / max(sp, 1e-9);
       vx *= k;
@@ -943,6 +1293,31 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     if (mounted) setState(() {});
   }
 
+  _PhaseKind _currentPhaseKind() => _phases[_phaseIndex].kind;
+
+  Future<void> _onCompleteSession() async {
+    if (_finishing) return;
+    _finishing = true;
+
+    // Bell at session end
+    await _playBell();
+
+    if (!mounted) return;
+    setState(() {
+      showEndText = true;
+      showSessionText = false;
+    });
+
+    // Soft completion: bloom/fade
+    try {
+      await _finishController.forward();
+    } catch (_) {}
+
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+  }
+
   Future<void> _buildNoiseImage() async {
     const w = 256;
     const h = 256;
@@ -977,8 +1352,10 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
   @override
   void dispose() {
     controller.dispose();
+    _finishController.dispose();
     ambientPlayer?.dispose();
     bouncePlayer?.dispose();
+    bellPlayer?.dispose();
     _noiseImage?.dispose();
     super.dispose();
   }
@@ -989,20 +1366,32 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     return '${m.toString().padLeft(2, '0')}:${r.toString().padLeft(2, '0')}';
   }
 
-  // Smooth, premium color cycling:
-  // - uses hue rotation
-  // - clamps saturation/value to avoid “RGB toy”
-  Color _colorAt(double seconds) {
+  // Base color used to tint glow / internal gradients
+  Color _baseColorAt(double seconds) {
     final phase = (seconds / _cycleSeconds) % 1.0;
-
-    // A subtle easing so the hue drift feels natural.
     final eased = Curves.easeInOut.transform(phase);
 
-    final hue = eased * 360.0;
+    if (widget.mode == SessionMode.pomodoro) {
+      // keep hue around deep reds
+      final hue = ui.lerpDouble(350.0, 10.0, eased)!; // wrap-ish
+      return HSVColor.fromAHSV(1.0, hue, 0.75, 0.95).toColor();
+    }
 
-    // Keep it vivid but not neon.
-    final hsv = HSVColor.fromAHSV(1.0, hue, 0.78, 1.0);
-    return hsv.toColor();
+    // silence: rich purples/blues
+    final hue = ui.lerpDouble(250.0, 290.0, eased)!;
+    return HSVColor.fromAHSV(1.0, hue, 0.65, 0.98).toColor();
+  }
+
+  int _remainingTotalSeconds() {
+    final total = controller.duration?.inSeconds ?? widget.silenceSeconds;
+    final elapsed = (controller.lastElapsedDuration ?? Duration.zero).inSeconds;
+    return (total - elapsed).clamp(0, total);
+  }
+
+  String _phaseLabel() {
+    if (widget.mode == SessionMode.silence) return '';
+    final k = _currentPhaseKind();
+    return (k == _PhaseKind.focus) ? 'Focus' : 'Break';
   }
 
   @override
@@ -1010,130 +1399,223 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     final elapsed =
         (controller.lastElapsedDuration ?? Duration.zero).inMilliseconds /
             1000.0;
-    final ballColor = _colorAt(elapsed);
-
-    final remaining = (widget.segundos * (1.0 - controller.value))
-        .ceil()
-        .clamp(0, widget.segundos);
+    final baseColor = _baseColorAt(elapsed);
+    final remaining = _remainingTotalSeconds();
 
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
-      body: LayoutBuilder(
-        builder: (_, c) {
-          final px = x * c.maxWidth;
-          final py = y * c.maxHeight;
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _togglePause,
+        child: LayoutBuilder(
+          builder: (_, c) {
+            final px = x * c.maxWidth;
+            final py = y * c.maxHeight;
 
-          final t = controller.value;
-          final rr =
-              10 + 2.2 * sin(t * pi * 2) + 1.2 * sin(t * pi * 0.27 + 1.7);
+            final t = controller.value; // 0..1
+            final rr =
+                10 + 2.2 * sin(t * pi * 2) + 1.2 * sin(t * pi * 0.27 + 1.7);
 
-          final ox = 0.9 * sin(t * pi * 0.13 + 0.6);
-          final oy = 0.9 * cos(t * pi * 0.11 + 2.1);
+            final ox = 0.9 * sin(t * pi * 0.13 + 0.6);
+            final oy = 0.9 * cos(t * pi * 0.11 + 2.1);
 
-          return Stack(
-            children: [
-              CustomPaint(
-                painter: _BallPainter(
-                  p: Offset(px, py),
-                  r: rr,
-                  haloOffset: Offset(ox, oy),
-                  noise: _noiseImage,
-                  ballColor: ballColor,
+            return Stack(
+              children: [
+                CustomPaint(
+                  painter: _BallPainter(
+                    mode: widget.mode,
+                    phaseKind: _currentPhaseKind(),
+                    p: Offset(px, py),
+                    r: rr,
+                    haloOffset: Offset(ox, oy),
+                    noise: _noiseImage,
+                    baseColor: baseColor,
+                    timeSeconds: elapsed,
+                    finishT: _finishT,
+                  ),
+                  child: const SizedBox.expand(),
                 ),
-                child: const SizedBox.expand(),
-              ),
-              Positioned(
-                top: 18,
-                right: 18,
-                child: Opacity(
-                  opacity: 0.28,
-                  child: Text(
-                    _fmtMMSS(remaining),
-                    style: Theme.of(context).textTheme.bodyMedium,
+
+                Positioned(
+                  top: 18,
+                  right: 18,
+                  child: Opacity(
+                    opacity: 0.28,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          _fmtMMSS(remaining),
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        if (widget.mode == SessionMode.pomodoro)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Opacity(
+                              opacity: 0.65,
+                              child: Text(
+                                _phaseLabel(),
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              IgnorePointer(
-                ignoring: true,
-                child: AnimatedOpacity(
-                  opacity: showSessionText ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 850),
-                  curve: Curves.easeOut,
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        sessionPhrase,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Colors.white.withOpacity(0.36),
-                            ),
+
+                // Tap hint (subtle)
+                Positioned(
+                  bottom: 20,
+                  left: 0,
+                  right: 0,
+                  child: IgnorePointer(
+                    ignoring: true,
+                    child: AnimatedOpacity(
+                      opacity: showTapHint && !_paused ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 650),
+                      curve: Curves.easeOut,
+                      child: Center(
+                        child: Text(
+                          'Tap to pause',
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Colors.white.withOpacity(0.16),
+                                    letterSpacing: 0.4,
+                                  ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              IgnorePointer(
-                ignoring: true,
-                child: AnimatedOpacity(
-                  opacity: showEndText ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 450),
-                  curve: Curves.easeOut,
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        endPhrase,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              fontSize: 18,
-                              color: Colors.white.withOpacity(0.55),
-                            ),
+
+                // Session headline text (>=10s)
+                IgnorePointer(
+                  ignoring: true,
+                  child: AnimatedOpacity(
+                    opacity: showSessionText && !_paused ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 950),
+                    curve: Curves.easeOut,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          _headline,
+                          textAlign: TextAlign.center,
+                          style:
+                              Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Colors.white.withOpacity(0.36),
+                                  ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          );
-        },
+
+                // End phrase
+                IgnorePointer(
+                  ignoring: true,
+                  child: AnimatedOpacity(
+                    opacity: showEndText ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 450),
+                    curve: Curves.easeOut,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          _endline,
+                          textAlign: TextAlign.center,
+                          style:
+                              Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    fontSize: 18,
+                                    color: Colors.white.withOpacity(0.55),
+                                  ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Pause overlay
+                IgnorePointer(
+                  ignoring: true,
+                  child: AnimatedOpacity(
+                    opacity: _paused ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOut,
+                    child: Container(
+                      color: Colors.black.withOpacity(0.22),
+                      child: Center(
+                        child: Text(
+                          'Paused — tap to continue',
+                          textAlign: TextAlign.center,
+                          style:
+                              Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Colors.white.withOpacity(0.58),
+                                  ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 }
 
+enum _PhaseKind { silence, focus, breakk }
+
+class _Phase {
+  final _PhaseKind kind;
+  final String label;
+  final int startSec;
+  final int endSec;
+  _Phase({
+    required this.kind,
+    required this.label,
+    required this.startSec,
+    required this.endSec,
+  });
+}
+
 /// =============================================================
-///  PAINTER — now tinted bloom + dot by ballColor (premium)
+///  PAINTER — premium bg per mode + rotating internal gradients + sheen
 /// =============================================================
 
 class _BallPainter extends CustomPainter {
+  final SessionMode mode;
+  final _PhaseKind phaseKind;
   final Offset p;
   final double r;
   final Offset haloOffset;
   final ui.Image? noise;
-  final Color ballColor;
+  final Color baseColor;
+  final double timeSeconds;
+  final double finishT;
 
   _BallPainter({
+    required this.mode,
+    required this.phaseKind,
     required this.p,
     required this.r,
     required this.haloOffset,
     required this.noise,
-    required this.ballColor,
+    required this.baseColor,
+    required this.timeSeconds,
+    required this.finishT,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final bgPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Color(0xFF07070C),
-          Color(0xFF0E0C1A),
-          Color(0xFF000000),
-        ],
-        stops: [0.0, 0.55, 1.0],
-      ).createShader(Offset.zero & size);
+    // Background gradient per mode
+    final bg = (mode == SessionMode.pomodoro)
+        ? kPomodoroBgGradient()
+        : kSilenceBgGradient();
+    final bgPaint = Paint()..shader = bg.createShader(Offset.zero & size);
     canvas.drawRect(Offset.zero & size, bgPaint);
 
     final vignette = Paint()
@@ -1164,10 +1646,13 @@ class _BallPainter extends CustomPainter {
       canvas.drawRect(Offset.zero & size, grainPaint);
     }
 
-    // Tinted glow derived from ballColor (keeps premium look)
-    final glowColor = ballColor.withOpacity(0.18);
-    final glowColor2 = ballColor.withOpacity(0.12);
-    final glowColor3 = ballColor.withOpacity(0.08);
+    // Soft completion bloom (finishT expands glow slightly)
+    final finishBoost = 1.0 + 0.35 * finishT;
+
+    // Tinted glow derived from baseColor
+    final glowColor = baseColor.withOpacity(0.18 * finishBoost);
+    final glowColor2 = baseColor.withOpacity(0.12 * finishBoost);
+    final glowColor3 = baseColor.withOpacity(0.08 * finishBoost);
 
     final bloom1 = Paint()
       ..color = glowColor
@@ -1181,19 +1666,92 @@ class _BallPainter extends CustomPainter {
 
     final p2 = p + haloOffset * 1.2;
 
-    canvas.drawCircle(p2, r + 14, bloom3);
-    canvas.drawCircle(p2, r + 9, bloom2);
-    canvas.drawCircle(p, r + 6, bloom1);
+    canvas.drawCircle(p2, (r + 14) * finishBoost, bloom3);
+    canvas.drawCircle(p2, (r + 9) * finishBoost, bloom2);
+    canvas.drawCircle(p, (r + 6) * finishBoost, bloom1);
 
-    // Core dot: slightly whiter center but colored body
-    final dot = Paint()
-      ..color = Color.lerp(ballColor, Colors.white, 0.18)!.withOpacity(0.98);
-    canvas.drawCircle(p, r, dot);
+    // Internal non-homogeneous ball:
+    //  - radial gradient (2–3 tones)
+    //  - sweep gradient overlay with subtle rotation => "spinning"
+    //  - moving sheen highlight
+    final rect = Rect.fromCircle(center: p, radius: r);
 
+    final hsv = HSVColor.fromColor(baseColor);
+    final c1 = HSVColor.fromAHSV(
+            1.0,
+            hsv.hue,
+            (hsv.saturation * 0.85).clamp(0.0, 1.0),
+            (hsv.value * 0.95).clamp(0.0, 1.0))
+        .toColor();
+    final c2 = HSVColor.fromAHSV(
+            1.0,
+            (hsv.hue + 22) % 360,
+            (hsv.saturation * 0.75).clamp(0.0, 1.0),
+            (hsv.value * 0.88).clamp(0.0, 1.0))
+        .toColor();
+    final c3 = HSVColor.fromAHSV(
+            1.0,
+            (hsv.hue + 300) % 360,
+            (hsv.saturation * 0.60).clamp(0.0, 1.0),
+            (hsv.value * 0.78).clamp(0.0, 1.0))
+        .toColor();
+
+    final radial = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.35, -0.40),
+        radius: 1.15,
+        colors: [
+          Color.lerp(c1, Colors.white, 0.16)!.withOpacity(0.98),
+          c2.withOpacity(0.96),
+          c3.withOpacity(0.92),
+        ],
+        stops: const [0.0, 0.55, 1.0],
+      ).createShader(rect);
+
+    canvas.drawCircle(p, r, radial);
+
+    // Sweep overlay to fake subtle rotation
+    final rot = (timeSeconds * 0.55) % (pi * 2);
+    final sweep = Paint()
+      ..shader = SweepGradient(
+        center: Alignment.center,
+        startAngle: rot,
+        endAngle: rot + pi * 2,
+        colors: [
+          baseColor.withOpacity(0.05),
+          Colors.white.withOpacity(0.10),
+          baseColor.withOpacity(0.06),
+          Colors.black.withOpacity(0.08),
+          baseColor.withOpacity(0.05),
+        ],
+        stops: const [0.0, 0.22, 0.5, 0.72, 1.0],
+      ).createShader(rect)
+      ..blendMode = BlendMode.softLight;
+
+    canvas.drawCircle(p, r, sweep);
+
+    // Moving sheen highlight
+    final hx = p.dx + (r * 0.35) * sin(timeSeconds * 0.85 + 0.6);
+    final hy = p.dy - (r * 0.35) * cos(timeSeconds * 0.80 + 1.2);
+    final highlight = Paint()
+      ..shader = RadialGradient(
+        center: Alignment.center,
+        radius: 1.0,
+        colors: [
+          Colors.white.withOpacity(0.22),
+          Colors.white.withOpacity(0.00),
+        ],
+        stops: const [0.0, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset(hx, hy), radius: r * 0.75))
+      ..blendMode = BlendMode.screen;
+
+    canvas.drawCircle(p, r, highlight);
+
+    // Edge stroke (premium)
     final edge = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.8
-      ..color = Colors.white.withOpacity(0.16);
+      ..color = Colors.white.withOpacity(0.14);
     canvas.drawCircle(p, r + 0.4, edge);
   }
 
