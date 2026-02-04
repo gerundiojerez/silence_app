@@ -1,5 +1,4 @@
 import 'dart:math';
-
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -10,7 +9,6 @@ void main() => runApp(const SilenceApp());
 
 /// =============================================================
 ///  PHRASES (EN) — short, present-focused (paraphrases)
-///  ~50 session phrases + a few end phrases.
 /// =============================================================
 
 const List<String> kSessionPhrases = [
@@ -76,6 +74,30 @@ const List<String> kEndPhrases = [
 ];
 
 /// =============================================================
+///  Daily tracker keys
+/// =============================================================
+const String kPrefDailySeconds = 'dailySeconds';
+const String kPrefDailyKey = 'dailyKey';
+
+String _dayKeyNow() {
+  final now = DateTime.now();
+  return '${now.year.toString().padLeft(4, '0')}-'
+      '${now.month.toString().padLeft(2, '0')}-'
+      '${now.day.toString().padLeft(2, '0')}';
+}
+
+String _fmtToday(int totalSeconds) {
+  final m = totalSeconds ~/ 60;
+  final s = totalSeconds % 60;
+  if (m >= 60) {
+    final h = m ~/ 60;
+    final mm = m % 60;
+    return '${h}h ${mm.toString().padLeft(2, '0')}m';
+  }
+  return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+}
+
+/// =============================================================
 ///  APP
 /// =============================================================
 
@@ -119,7 +141,6 @@ class _SilenceAppState extends State<SilenceApp> {
       );
     }
 
-    // Typography: more air (letterSpacing + height) + calmer weights.
     ThemeData baseTheme(Brightness b, Color seed, Color bg) {
       final scheme = ColorScheme.fromSeed(seedColor: seed, brightness: b);
       final onBg = scheme.onBackground;
@@ -129,8 +150,6 @@ class _SilenceAppState extends State<SilenceApp> {
         useMaterial3: true,
         colorScheme: scheme,
         scaffoldBackgroundColor: bg,
-
-        // We keep it package-free; fallbacks are ok.
         fontFamilyFallback: const ['Inter', 'SF Pro Display', 'Roboto'],
         textTheme: TextTheme(
           displayLarge: TextStyle(
@@ -199,8 +218,7 @@ class _SilenceAppState extends State<SilenceApp> {
 }
 
 /// =============================================================
-///  START — First screen “Silence” (minimal) + intro (minimal)
-///  (Requirement #6 and #5)
+///  START
 /// =============================================================
 
 class StartScreen extends StatelessWidget {
@@ -234,7 +252,6 @@ class StartScreen extends StatelessWidget {
       child: Scaffold(
         body: Container(
           decoration: const BoxDecoration(
-            // Requirement #10: gradients
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -256,7 +273,6 @@ class StartScreen extends StatelessWidget {
                     Text('Silence',
                         style: Theme.of(context).textTheme.displayLarge),
                     const SizedBox(height: 14),
-                    // Minimal intro text (Requirement #5)
                     Text(
                       "Just be here.",
                       textAlign: TextAlign.center,
@@ -283,7 +299,9 @@ class StartScreen extends StatelessWidget {
 }
 
 /// =============================================================
-///  HOME — clean, no timer setting here (Requirement #4, #11)
+///  HOME
+///  - Adds: Today silence marker (resets daily)
+///  - Extends: time options
 /// =============================================================
 
 class HomeScreen extends StatefulWidget {
@@ -303,13 +321,26 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool loaded = false;
 
-  // Keep your original time options (discrete).
-  static const List<int> timeOptions = [30, 45, 60, 90, 120];
+  // Extended options:
+  // 30s, 45s, 1m, 1.5m, 2m, 5m, 10m, 20m, 30m
+  static const List<int> timeOptions = [
+    30,
+    45,
+    60,
+    90,
+    120,
+    300,
+    600,
+    1200,
+    1800,
+  ];
 
   int silenceSeconds = 45;
-  bool soundOn = true; // Requirement #2: sound ON by default
+  bool soundOn = true;
   double volume = 0.18;
   double speedMul = 1.0;
+
+  int todaySeconds = 0;
 
   @override
   void initState() {
@@ -317,16 +348,28 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadPrefs();
   }
 
+  Future<void> _ensureDailyFresh(SharedPreferences prefs) async {
+    final key = prefs.getString(kPrefDailyKey);
+    final nowKey = _dayKeyNow();
+    if (key != nowKey) {
+      await prefs.setString(kPrefDailyKey, nowKey);
+      await prefs.setInt(kPrefDailySeconds, 0);
+    }
+  }
+
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
+
+    await _ensureDailyFresh(prefs);
 
     final savedSeconds = prefs.getInt('silenceSeconds');
     silenceSeconds = timeOptions.contains(savedSeconds) ? savedSeconds! : 45;
 
-    // default ON if missing
     soundOn = prefs.getBool('soundOn') ?? true;
     volume = (prefs.getDouble('volume') ?? 0.18).clamp(0.0, 0.35);
     speedMul = (prefs.getDouble('speedMul') ?? 1.0).clamp(0.7, 1.25);
+
+    todaySeconds = prefs.getInt(kPrefDailySeconds) ?? 0;
 
     if (!mounted) return;
     setState(() => loaded = true);
@@ -340,9 +383,18 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setDouble('speedMul', speedMul);
   }
 
-  /// Transition HOME → BALL (keep your “sink” feel)
+  Future<void> _addToday(int secondsToAdd) async {
+    final prefs = await SharedPreferences.getInstance();
+    await _ensureDailyFresh(prefs);
+    final curr = prefs.getInt(kPrefDailySeconds) ?? 0;
+    final next = curr + secondsToAdd;
+    await prefs.setInt(kPrefDailySeconds, next);
+    if (!mounted) return;
+    setState(() => todaySeconds = next);
+  }
+
   Future<void> openSilence() async {
-    await Navigator.of(context).push(
+    final result = await Navigator.of(context).push<bool>(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 520),
         reverseTransitionDuration: const Duration(milliseconds: 420),
@@ -364,10 +416,22 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
+
+    if (result == true) {
+      // Session completed => add configured seconds
+      await _addToday(silenceSeconds);
+    } else {
+      // Still ensure daily reset if date changed while in session.
+      final prefs = await SharedPreferences.getInstance();
+      await _ensureDailyFresh(prefs);
+      final v = prefs.getInt(kPrefDailySeconds) ?? 0;
+      if (!mounted) return;
+      setState(() => todaySeconds = v);
+    }
   }
 
   Future<void> openSettings() async {
-    final result = await Navigator.of(context).push(
+    final result = await Navigator.of(context).push<SettingsResult>(
       MaterialPageRoute(
         builder: (_) => SettingsScreen(
           initialSeconds: silenceSeconds,
@@ -390,6 +454,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     await _savePrefs();
     await widget.onSetTheme(result.darkMode);
+
+    // refresh daily in case date changed
+    final prefs = await SharedPreferences.getInstance();
+    await _ensureDailyFresh(prefs);
+    final v = prefs.getInt(kPrefDailySeconds) ?? 0;
+    if (!mounted) return;
+    setState(() => todaySeconds = v);
   }
 
   @override
@@ -406,7 +477,6 @@ class _HomeScreenState extends State<HomeScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            // Requirement #10: gradients (home)
             colors: [
               c.background,
               c.background.withOpacity(0.88),
@@ -421,6 +491,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text('Silence', style: text.titleLarge),
                     const Spacer(),
@@ -432,16 +503,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
+
+              // (4) Today marker — small, subtle, resets daily
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Opacity(
+                  opacity: 0.55,
+                  child: Text(
+                    'Today: ${_fmtToday(todaySeconds)}',
+                    style: text.bodyMedium,
+                  ),
+                ),
+              ),
+
               const Spacer(),
-              // Requirement #4: DO NOT show duration selector here
               Text('Enter the present.',
                   style: text.headlineMedium, textAlign: TextAlign.center),
               const SizedBox(height: 10),
-              Text(
-                'No tapping needed.',
-                style: text.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
+              Text('No tapping needed.',
+                  style: text.bodyMedium, textAlign: TextAlign.center),
               const SizedBox(height: 22),
               FilledButton(
                 onPressed: openSilence,
@@ -461,7 +541,7 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 /// =============================================================
-///  SETTINGS — timer + sound live here (Requirement #4, #7, #11)
+///  SETTINGS
 /// =============================================================
 
 class SettingsResult {
@@ -597,8 +677,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 18),
           const Divider(),
           const SizedBox(height: 12),
-
-          // Requirement #7/#11: sound only here
           Row(
             children: [
               Text('Sound', style: TextStyle(fontSize: 18, color: onBg)),
@@ -658,9 +736,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 /// =============================================================
 ///  EXPERIENCE: BALL
-///  - Timer on-screen is now minimal (Requirement #1, #8)
-///  - Gradients improved (Requirement #10)
-///  - Phrases repository expanded (Requirement #3)
+///  Changes:
+///   (1) Color cycling, premium
+///   (2) Bounce sound every bounce
 /// =============================================================
 
 class BallSilenceScreen extends StatefulWidget {
@@ -694,8 +772,8 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
   AudioPlayer? bouncePlayer;
 
   DateTime _lastBounceSound = DateTime.fromMillisecondsSinceEpoch(0);
-  static const int _minBounceMs = 180;
-  static const double _bounceChance = 0.35;
+  static const int _minBounceMs =
+      80; // short throttle to prevent double-fire per frame
 
   late final String sessionPhrase;
   late final String endPhrase;
@@ -705,6 +783,9 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
   bool _popping = false;
 
   ui.Image? _noiseImage;
+
+  // Color cycle settings
+  static const double _cycleSeconds = 14.0; // not too slow, not too fast
 
   @override
   void initState() {
@@ -748,7 +829,7 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
   Future<void> _initAudio() async {
     if (!widget.soundOn) return;
 
-    // Ambient loop (soft)
+    // Ambient loop
     try {
       final p = AudioPlayer();
       await p.setReleaseMode(ReleaseMode.loop);
@@ -758,7 +839,7 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
       ambientPlayer = p;
     } catch (_) {}
 
-    // Bounce FX (soft_pop)
+    // Bounce FX
     try {
       final p2 = AudioPlayer();
       await p2.setReleaseMode(ReleaseMode.stop);
@@ -767,24 +848,25 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     } catch (_) {}
   }
 
-  Future<void> _maybePlayBounce() async {
+  Future<void> _playBounce() async {
     if (!widget.soundOn) return;
     if (bouncePlayer == null) return;
-    if (rnd.nextDouble() > _bounceChance) return;
 
     final now = DateTime.now();
     if (now.difference(_lastBounceSound).inMilliseconds < _minBounceMs) return;
     _lastBounceSound = now;
 
-    final bounceVol = (widget.volume * 0.45).clamp(0.0, 0.16);
+    final bounceVol = (widget.volume * 0.50).clamp(0.0, 0.18);
     try {
       await bouncePlayer!.setVolume(bounceVol);
       await bouncePlayer!.seek(Duration.zero);
       await bouncePlayer!.resume();
     } catch (_) {
       try {
-        await bouncePlayer!
-            .play(AssetSource('sounds/soft_pop.mp3'), volume: bounceVol);
+        await bouncePlayer!.play(
+          AssetSource('sounds/soft_pop.mp3'),
+          volume: bounceVol,
+        );
       } catch (_) {}
     }
   }
@@ -857,7 +939,7 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
       bounced = true;
     }
 
-    if (bounced) _maybePlayBounce();
+    if (bounced) _playBounce();
     if (mounted) setState(() {});
   }
 
@@ -907,9 +989,29 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     return '${m.toString().padLeft(2, '0')}:${r.toString().padLeft(2, '0')}';
   }
 
+  // Smooth, premium color cycling:
+  // - uses hue rotation
+  // - clamps saturation/value to avoid “RGB toy”
+  Color _colorAt(double seconds) {
+    final phase = (seconds / _cycleSeconds) % 1.0;
+
+    // A subtle easing so the hue drift feels natural.
+    final eased = Curves.easeInOut.transform(phase);
+
+    final hue = eased * 360.0;
+
+    // Keep it vivid but not neon.
+    final hsv = HSVColor.fromAHSV(1.0, hue, 0.78, 1.0);
+    return hsv.toColor();
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Requirement #1/#8: small timer on experience screen
+    final elapsed =
+        (controller.lastElapsedDuration ?? Duration.zero).inMilliseconds /
+            1000.0;
+    final ballColor = _colorAt(elapsed);
+
     final remaining = (widget.segundos * (1.0 - controller.value))
         .ceil()
         .clamp(0, widget.segundos);
@@ -922,7 +1024,8 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
           final py = y * c.maxHeight;
 
           final t = controller.value;
-          final r = 10 + 2.2 * sin(t * pi * 2) + 1.2 * sin(t * pi * 0.27 + 1.7);
+          final rr =
+              10 + 2.2 * sin(t * pi * 2) + 1.2 * sin(t * pi * 0.27 + 1.7);
 
           final ox = 0.9 * sin(t * pi * 0.13 + 0.6);
           final oy = 0.9 * cos(t * pi * 0.11 + 2.1);
@@ -932,14 +1035,13 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
               CustomPaint(
                 painter: _BallPainter(
                   p: Offset(px, py),
-                  r: r,
+                  r: rr,
                   haloOffset: Offset(ox, oy),
                   noise: _noiseImage,
+                  ballColor: ballColor,
                 ),
                 child: const SizedBox.expand(),
               ),
-
-              // Minimal timer — top-right, low opacity (Requirement #1/#8)
               Positioned(
                 top: 18,
                 right: 18,
@@ -951,7 +1053,6 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
                   ),
                 ),
               ),
-
               IgnorePointer(
                 ignoring: true,
                 child: AnimatedOpacity(
@@ -972,7 +1073,6 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
                   ),
                 ),
               ),
-
               IgnorePointer(
                 ignoring: true,
                 child: AnimatedOpacity(
@@ -1003,7 +1103,7 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
 }
 
 /// =============================================================
-///  PAINTER — improved gradients + grain + premium bloom
+///  PAINTER — now tinted bloom + dot by ballColor (premium)
 /// =============================================================
 
 class _BallPainter extends CustomPainter {
@@ -1011,17 +1111,18 @@ class _BallPainter extends CustomPainter {
   final double r;
   final Offset haloOffset;
   final ui.Image? noise;
+  final Color ballColor;
 
   _BallPainter({
     required this.p,
     required this.r,
     required this.haloOffset,
     required this.noise,
+    required this.ballColor,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Requirement #10: nicer background gradients (subtle)
     final bgPaint = Paint()
       ..shader = const LinearGradient(
         begin: Alignment.topLeft,
@@ -1035,7 +1136,6 @@ class _BallPainter extends CustomPainter {
       ).createShader(Offset.zero & size);
     canvas.drawRect(Offset.zero & size, bgPaint);
 
-    // Vignette
     final vignette = Paint()
       ..shader = RadialGradient(
         center: Alignment.center,
@@ -1049,7 +1149,6 @@ class _BallPainter extends CustomPainter {
       ).createShader(Offset.zero & size);
     canvas.drawRect(Offset.zero & size, vignette);
 
-    // Grain overlay
     if (noise != null) {
       final shader = ImageShader(
         noise!,
@@ -1065,15 +1164,19 @@ class _BallPainter extends CustomPainter {
       canvas.drawRect(Offset.zero & size, grainPaint);
     }
 
-    // Premium bloom
+    // Tinted glow derived from ballColor (keeps premium look)
+    final glowColor = ballColor.withOpacity(0.18);
+    final glowColor2 = ballColor.withOpacity(0.12);
+    final glowColor3 = ballColor.withOpacity(0.08);
+
     final bloom1 = Paint()
-      ..color = Colors.white.withOpacity(0.12)
+      ..color = glowColor
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
     final bloom2 = Paint()
-      ..color = Colors.white.withOpacity(0.08)
+      ..color = glowColor2
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24);
     final bloom3 = Paint()
-      ..color = Colors.white.withOpacity(0.045)
+      ..color = glowColor3
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 44);
 
     final p2 = p + haloOffset * 1.2;
@@ -1082,7 +1185,9 @@ class _BallPainter extends CustomPainter {
     canvas.drawCircle(p2, r + 9, bloom2);
     canvas.drawCircle(p, r + 6, bloom1);
 
-    final dot = Paint()..color = Colors.white.withOpacity(0.92);
+    // Core dot: slightly whiter center but colored body
+    final dot = Paint()
+      ..color = Color.lerp(ballColor, Colors.white, 0.18)!.withOpacity(0.98);
     canvas.drawCircle(p, r, dot);
 
     final edge = Paint()
