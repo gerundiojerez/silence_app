@@ -252,7 +252,8 @@ class StartScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Silence', style: Theme.of(context).textTheme.displayLarge),
+                    Text('Silence',
+                        style: Theme.of(context).textTheme.displayLarge),
                     const SizedBox(height: 14),
                     // Minimal intro text (Requirement #5)
                     Text(
@@ -264,7 +265,8 @@ class StartScreen extends StatelessWidget {
                     FilledButton(
                       onPressed: go,
                       child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                         child: Text('Continue'),
                       ),
                     ),
@@ -350,7 +352,8 @@ class _HomeScreenState extends State<HomeScreen> {
           speedMul: speedMul,
         ),
         transitionsBuilder: (_, animation, __, child) {
-          final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+          final curved =
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
           final fade = Tween(begin: 0.0, end: 1.0).animate(curved);
           final scale = Tween(begin: 0.985, end: 1.0).animate(curved);
           return FadeTransition(
@@ -390,7 +393,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!loaded) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (!loaded)
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     final c = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
@@ -429,7 +433,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const Spacer(),
               // Requirement #4: DO NOT show duration selector here
-              Text('Enter the present.', style: text.headlineMedium, textAlign: TextAlign.center),
+              Text('Enter the present.',
+                  style: text.headlineMedium, textAlign: TextAlign.center),
               const SizedBox(height: 10),
               Text(
                 'No tapping needed.',
@@ -561,7 +566,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Text('Timer', style: TextStyle(fontSize: 18, color: onBg)),
               const Spacer(),
-              Text(fmtMMSS(seconds), style: TextStyle(fontSize: 18, color: onBg)),
+              Text(fmtMMSS(seconds),
+                  style: TextStyle(fontSize: 18, color: onBg)),
             ],
           ),
           const SizedBox(height: 10),
@@ -606,9 +612,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                Text('Volume', style: TextStyle(fontSize: 16, color: onBg.withOpacity(0.9))),
+                Text('Volume',
+                    style:
+                        TextStyle(fontSize: 16, color: onBg.withOpacity(0.9))),
                 const Spacer(),
-                Text('${(volume * 100).round()}%', style: TextStyle(color: onBg.withOpacity(0.8))),
+                Text('${(volume * 100).round()}%',
+                    style: TextStyle(color: onBg.withOpacity(0.8))),
               ],
             ),
             Slider(
@@ -624,7 +633,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Text('Speed', style: TextStyle(fontSize: 18, color: onBg)),
               const Spacer(),
-              Text(speedLabel(speedMul), style: TextStyle(fontSize: 16, color: onBg.withOpacity(0.8))),
+              Text(speedLabel(speedMul),
+                  style: TextStyle(fontSize: 16, color: onBg.withOpacity(0.8))),
             ],
           ),
           Slider(
@@ -772,7 +782,8 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
       await bouncePlayer!.resume();
     } catch (_) {
       try {
-        await bouncePlayer!.play(AssetSource('sounds/soft_pop.mp3'), volume: bounceVol);
+        await bouncePlayer!
+            .play(AssetSource('sounds/soft_pop.mp3'), volume: bounceVol);
       } catch (_) {}
     }
   }
@@ -898,7 +909,9 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
   @override
   Widget build(BuildContext context) {
     // Requirement #1/#8: small timer on experience screen
-    final remaining = (widget.segundos * (1.0 - controller.value)).ceil().clamp(0, widget.segundos);
+    final remaining = (widget.segundos * (1.0 - controller.value))
+        .ceil()
+        .clamp(0, widget.segundos);
 
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
@@ -1045,7 +1058,8 @@ class _BallPainter extends CustomPainter {
       );
       final grainPaint = Paint()
         ..shader = shader
-        ..colorFilter = const ColorFilter.mode(Color(0x1AFFFFFF), BlendMode.srcIn)
+        ..colorFilter =
+            const ColorFilter.mode(Color(0x1AFFFFFF), BlendMode.srcIn)
         ..blendMode = BlendMode.softLight;
       canvas.drawRect(Offset.zero & size, grainPaint);
     }
