@@ -1,31 +1,82 @@
 import 'dart:math';
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 void main() => runApp(const SilenceApp());
 
-/// ==================== COPY (NO PERIODS) ====================
+/// =============================================================
+///  PHRASES (EN) — short, present-focused (paraphrases)
+///  ~50 session phrases + a few end phrases.
+/// =============================================================
 
 const List<String> kSessionPhrases = [
-  'Do nothing',
-  'Just stay',
-  'Nothing to solve',
-  'No effort needed',
-  'Let it pass',
-  'You can stop trying',
-  'This is enough',
+  "Just this breath.",
+  "Arrive in this moment.",
+  "Nothing to fix.",
+  "Let it be simple.",
+  "Be here now.",
+  "This moment is enough.",
+  "No need to rush.",
+  "Feel what is here.",
+  "Now is wide open.",
+  "Rest in awareness.",
+  "Soften the effort.",
+  "Let the mind settle.",
+  "Stay with the present.",
+  "Allow this to be.",
+  "Nothing is missing.",
+  "Come back to now.",
+  "Meet this moment gently.",
+  "Let thoughts pass through.",
+  "You are already here.",
+  "This is your home.",
+  "Quietly notice.",
+  "Just witnessing.",
+  "Ease into being.",
+  "The present holds you.",
+  "Let go of the next thing.",
+  "One breath at a time.",
+  "Be with what is.",
+  "No story needed.",
+  "Peace is here.",
+  "Stop trying for a second.",
+  "The now is enough.",
+  "Feel the aliveness.",
+  "Release the tension.",
+  "Nothing to achieve.",
+  "Let the moment breathe you.",
+  "Be the space around thoughts.",
+  "Gently return.",
+  "Here. Now.",
+  "Simply aware.",
+  "This is it.",
+  "Drop the commentary.",
+  "Let the body rest.",
+  "Notice and allow.",
+  "Don’t add anything.",
+  "A soft attention.",
+  "Let time be time.",
+  "Befriend the moment.",
+  "Stay with the breath.",
+  "Rest your mind.",
+  "Let silence listen.",
 ];
 
 const List<String> kEndPhrases = [
-  'That’s enough',
-  'You can go now',
-  'Silence continues outside',
-  'Nothing else is required',
+  "Done.",
+  "Carry this with you.",
+  "You can go now.",
+  "Silence continues outside.",
+  "Nothing else is required.",
+  "Return when you want.",
 ];
 
-/// ==================== APP ====================
+/// =============================================================
+///  APP
+/// =============================================================
 
 class SilenceApp extends StatefulWidget {
   const SilenceApp({super.key});
@@ -63,27 +114,73 @@ class _SilenceAppState extends State<SilenceApp> {
     if (!loaded) {
       return const MaterialApp(
         home: Scaffold(body: Center(child: CircularProgressIndicator())),
+        debugShowCheckedModeBanner: false,
       );
     }
 
-    final light = ThemeData(
-      brightness: Brightness.light,
-      scaffoldBackgroundColor: const Color(0xFFF6F3FF),
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFFB39DDB),
-        brightness: Brightness.light,
-      ),
-      useMaterial3: true,
+    // Typography: more air (letterSpacing + height) + calmer weights.
+    ThemeData baseTheme(Brightness b, Color seed, Color bg) {
+      final scheme = ColorScheme.fromSeed(seedColor: seed, brightness: b);
+      final onBg = scheme.onBackground;
+
+      return ThemeData(
+        brightness: b,
+        useMaterial3: true,
+        colorScheme: scheme,
+        scaffoldBackgroundColor: bg,
+
+        // We keep it package-free; fallbacks are ok.
+        fontFamilyFallback: const ['Inter', 'SF Pro Display', 'Roboto'],
+        textTheme: TextTheme(
+          displayLarge: TextStyle(
+            fontSize: 52,
+            fontWeight: FontWeight.w300,
+            letterSpacing: 1.2,
+            height: 1.05,
+            color: onBg,
+          ),
+          headlineMedium: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w300,
+            letterSpacing: 0.7,
+            height: 1.25,
+            color: onBg.withOpacity(0.86),
+          ),
+          titleLarge: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w400,
+            letterSpacing: 0.6,
+            height: 1.25,
+            color: onBg.withOpacity(0.90),
+          ),
+          bodyLarge: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w300,
+            letterSpacing: 0.55,
+            height: 1.55,
+            color: onBg.withOpacity(0.82),
+          ),
+          bodyMedium: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w300,
+            letterSpacing: 0.45,
+            height: 1.45,
+            color: onBg.withOpacity(0.62),
+          ),
+        ),
+      );
+    }
+
+    final light = baseTheme(
+      Brightness.light,
+      const Color(0xFF9B8CFF),
+      const Color(0xFFF6F3FF),
     );
 
-    final dark = ThemeData(
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: const Color(0xFF0B0B10),
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF7E57C2),
-        brightness: Brightness.dark,
-      ),
-      useMaterial3: true,
+    final dark = baseTheme(
+      Brightness.dark,
+      const Color(0xFF7E57C2),
+      const Color(0xFF0B0B10),
     );
 
     return MaterialApp(
@@ -100,7 +197,10 @@ class _SilenceAppState extends State<SilenceApp> {
   }
 }
 
-/// ==================== START (FADE-IN) ====================
+/// =============================================================
+///  START — First screen “Silence” (minimal) + intro (minimal)
+///  (Requirement #6 and #5)
+/// =============================================================
 
 class StartScreen extends StatelessWidget {
   final bool darkMode;
@@ -114,8 +214,6 @@ class StartScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = Theme.of(context).colorScheme;
-
     void go() {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -133,36 +231,46 @@ class StartScreen extends StatelessWidget {
       curve: Curves.easeOut,
       builder: (context, t, child) => Opacity(opacity: t, child: child),
       child: Scaffold(
-        body: SafeArea(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Silence',
-                  style: TextStyle(
-                    fontSize: 50,
-                    fontWeight: FontWeight.w300,
-                    color: c.onBackground,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Do nothing',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: c.onBackground.withOpacity(0.65),
-                  ),
-                ),
-                const SizedBox(height: 26),
-                FilledButton(
-                  onPressed: go,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                    child: Text('Start'),
-                  ),
-                ),
+        body: Container(
+          decoration: const BoxDecoration(
+            // Requirement #10: gradients
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF121225),
+                Color(0xFF1B1837),
+                Color(0xFF0B0B10),
               ],
+              stops: [0.0, 0.55, 1.0],
+            ),
+          ),
+          child: SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 26),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Silence', style: Theme.of(context).textTheme.displayLarge),
+                    const SizedBox(height: 14),
+                    // Minimal intro text (Requirement #5)
+                    Text(
+                      "Just be here.",
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 26),
+                    FilledButton(
+                      onPressed: go,
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                        child: Text('Continue'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -171,7 +279,9 @@ class StartScreen extends StatelessWidget {
   }
 }
 
-/// ==================== HOME ====================
+/// =============================================================
+///  HOME — clean, no timer setting here (Requirement #4, #11)
+/// =============================================================
 
 class HomeScreen extends StatefulWidget {
   final bool darkMode;
@@ -190,10 +300,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool loaded = false;
 
+  // Keep your original time options (discrete).
   static const List<int> timeOptions = [30, 45, 60, 90, 120];
 
   int silenceSeconds = 45;
-  bool soundOn = false;
+  bool soundOn = true; // Requirement #2: sound ON by default
   double volume = 0.18;
   double speedMul = 1.0;
 
@@ -209,7 +320,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final savedSeconds = prefs.getInt('silenceSeconds');
     silenceSeconds = timeOptions.contains(savedSeconds) ? savedSeconds! : 45;
 
-    soundOn = prefs.getBool('soundOn') ?? false;
+    // default ON if missing
+    soundOn = prefs.getBool('soundOn') ?? true;
     volume = (prefs.getDouble('volume') ?? 0.18).clamp(0.0, 0.35);
     speedMul = (prefs.getDouble('speedMul') ?? 1.0).clamp(0.7, 1.25);
 
@@ -225,15 +337,9 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setDouble('speedMul', speedMul);
   }
 
-  String fmtMMSS(int s) {
-    final m = s ~/ 60;
-    final r = s % 60;
-    return '${m.toString().padLeft(2, '0')}:${r.toString().padLeft(2, '0')}';
-  }
-
-  /// ==================== CHANGE B: "SINK" TRANSITION HOME → BALL ====================
+  /// Transition HOME → BALL (keep your “sink” feel)
   Future<void> openSilence() async {
-    await Navigator.of(context).push<bool>(
+    await Navigator.of(context).push(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 520),
         reverseTransitionDuration: const Duration(milliseconds: 420),
@@ -243,19 +349,13 @@ class _HomeScreenState extends State<HomeScreen> {
           volume: volume,
           speedMul: speedMul,
         ),
-        transitionsBuilder: (_, animation, secondaryAnimation, child) {
+        transitionsBuilder: (_, animation, __, child) {
           final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-          final fade = Tween<double>(begin: 0.0, end: 1.0).animate(curved);
-
-          // subtle "sink" scale (barely noticeable but felt)
-          final scale = Tween<double>(begin: 0.985, end: 1.0).animate(curved);
-
+          final fade = Tween(begin: 0.0, end: 1.0).animate(curved);
+          final scale = Tween(begin: 0.985, end: 1.0).animate(curved);
           return FadeTransition(
             opacity: fade,
-            child: ScaleTransition(
-              scale: scale,
-              child: child,
-            ),
+            child: ScaleTransition(scale: scale, child: child),
           );
         },
       ),
@@ -263,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> openSettings() async {
-    final result = await Navigator.of(context).push<SettingsResult>(
+    final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SettingsScreen(
           initialSeconds: silenceSeconds,
@@ -275,7 +375,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-
     if (result == null) return;
 
     setState(() {
@@ -291,73 +390,73 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!loaded) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    if (!loaded) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     final c = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  Text(
-                    'Silence',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      color: c.onBackground,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            // Requirement #10: gradients (home)
+            colors: [
+              c.background,
+              c.background.withOpacity(0.88),
+              c.background.withOpacity(0.78),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Text('Silence', style: text.titleLarge),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: openSettings,
+                      icon: const Icon(Icons.settings),
+                      tooltip: 'Settings',
                     ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: openSettings,
-                    icon: const Icon(Icons.settings),
-                    tooltip: 'Settings',
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const Spacer(),
-            Text(
-              fmtMMSS(silenceSeconds),
-              style: TextStyle(
-                fontSize: 44,
-                fontWeight: FontWeight.w300,
-                color: c.onBackground.withOpacity(0.92),
+              const Spacer(),
+              // Requirement #4: DO NOT show duration selector here
+              Text('Enter the present.', style: text.headlineMedium, textAlign: TextAlign.center),
+              const SizedBox(height: 10),
+              Text(
+                'No tapping needed.',
+                style: text.bodyMedium,
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'No tapping needed',
-              style: TextStyle(
-                fontSize: 14,
-                color: c.onBackground.withOpacity(0.55),
+              const SizedBox(height: 22),
+              FilledButton(
+                onPressed: openSilence,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  child: Text('Enter'),
+                ),
               ),
-            ),
-            const SizedBox(height: 22),
-            FilledButton.tonal(
-              onPressed: openSilence,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                child: Text('Enter'),
-              ),
-            ),
-            const Spacer(),
-            const SizedBox(height: 18),
-          ],
+              const Spacer(),
+              const SizedBox(height: 18),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// ==================== SETTINGS ====================
+/// =============================================================
+///  SETTINGS — timer + sound live here (Requirement #4, #7, #11)
+/// =============================================================
 
 class SettingsResult {
   final int seconds;
@@ -491,6 +590,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 18),
           const Divider(),
           const SizedBox(height: 12),
+
+          // Requirement #7/#11: sound only here
           Row(
             children: [
               Text('Sound', style: TextStyle(fontSize: 18, color: onBg)),
@@ -505,15 +606,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                Text(
-                  'Volume',
-                  style: TextStyle(fontSize: 16, color: onBg.withOpacity(0.9)),
-                ),
+                Text('Volume', style: TextStyle(fontSize: 16, color: onBg.withOpacity(0.9))),
                 const Spacer(),
-                Text(
-                  '${(volume * 100).round()}%',
-                  style: TextStyle(color: onBg.withOpacity(0.8)),
-                ),
+                Text('${(volume * 100).round()}%', style: TextStyle(color: onBg.withOpacity(0.8))),
               ],
             ),
             Slider(
@@ -529,10 +624,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Text('Speed', style: TextStyle(fontSize: 18, color: onBg)),
               const Spacer(),
-              Text(
-                speedLabel(speedMul),
-                style: TextStyle(fontSize: 16, color: onBg.withOpacity(0.8)),
-              ),
+              Text(speedLabel(speedMul), style: TextStyle(fontSize: 16, color: onBg.withOpacity(0.8))),
             ],
           ),
           Slider(
@@ -544,7 +636,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Silence works best when you don’t interact\nSound is optional and should remain soft',
+            'Silence works best when you don’t interact.\nKeep sound soft.',
             style: TextStyle(color: onBg.withOpacity(0.6)),
           ),
         ],
@@ -553,7 +645,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-/// ==================== EXPERIENCE: BALL ====================
+/// =============================================================
+///  EXPERIENCE: BALL
+///  - Timer on-screen is now minimal (Requirement #1, #8)
+///  - Gradients improved (Requirement #10)
+///  - Phrases repository expanded (Requirement #3)
+/// =============================================================
 
 class BallSilenceScreen extends StatefulWidget {
   final int segundos;
@@ -585,18 +682,17 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
   AudioPlayer? ambientPlayer;
   AudioPlayer? bouncePlayer;
 
-  // bounce sound control
   DateTime _lastBounceSound = DateTime.fromMillisecondsSinceEpoch(0);
   static const int _minBounceMs = 180;
   static const double _bounceChance = 0.35;
 
   late final String sessionPhrase;
   late final String endPhrase;
+
   bool showSessionText = true;
   bool showEndText = false;
   bool _popping = false;
 
-  /// ==================== CHANGE A: GRAIN IMAGE (TILED) ====================
   ui.Image? _noiseImage;
 
   @override
@@ -604,9 +700,7 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     super.initState();
 
     sessionPhrase = kSessionPhrases[rnd.nextInt(kSessionPhrases.length)];
-    endPhrase = (rnd.nextDouble() < 0.55)
-        ? kEndPhrases.first
-        : kEndPhrases[rnd.nextInt(kEndPhrases.length)];
+    endPhrase = kEndPhrases[rnd.nextInt(kEndPhrases.length)];
 
     x = rnd.nextDouble() * 0.6 + 0.2;
     y = rnd.nextDouble() * 0.6 + 0.2;
@@ -623,9 +717,7 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     )
       ..addListener(_tick)
       ..addStatusListener((s) {
-        if (s == AnimationStatus.completed) {
-          _onComplete();
-        }
+        if (s == AnimationStatus.completed) _onComplete();
       });
 
     _initAudio();
@@ -636,7 +728,7 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
   }
 
   void _scheduleSessionTextFade() {
-    Future.delayed(const Duration(milliseconds: 1400), () {
+    Future.delayed(const Duration(milliseconds: 1200), () {
       if (!mounted) return;
       setState(() => showSessionText = false);
     });
@@ -645,7 +737,7 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
   Future<void> _initAudio() async {
     if (!widget.soundOn) return;
 
-    // ambient
+    // Ambient loop (soft)
     try {
       final p = AudioPlayer();
       await p.setReleaseMode(ReleaseMode.loop);
@@ -655,7 +747,7 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
       ambientPlayer = p;
     } catch (_) {}
 
-    // bounce
+    // Bounce FX (soft_pop)
     try {
       final p2 = AudioPlayer();
       await p2.setReleaseMode(ReleaseMode.stop);
@@ -667,7 +759,6 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
   Future<void> _maybePlayBounce() async {
     if (!widget.soundOn) return;
     if (bouncePlayer == null) return;
-
     if (rnd.nextDouble() > _bounceChance) return;
 
     final now = DateTime.now();
@@ -675,17 +766,13 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     _lastBounceSound = now;
 
     final bounceVol = (widget.volume * 0.45).clamp(0.0, 0.16);
-
     try {
       await bouncePlayer!.setVolume(bounceVol);
       await bouncePlayer!.seek(Duration.zero);
       await bouncePlayer!.resume();
     } catch (_) {
       try {
-        await bouncePlayer!.play(
-          AssetSource('sounds/soft_pop.mp3'),
-          volume: bounceVol,
-        );
+        await bouncePlayer!.play(AssetSource('sounds/soft_pop.mp3'), volume: bounceVol);
       } catch (_) {}
     }
   }
@@ -700,7 +787,7 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
       showSessionText = false;
     });
 
-    await Future.delayed(const Duration(milliseconds: 2400));
+    await Future.delayed(const Duration(milliseconds: 2200));
     if (!mounted) return;
     Navigator.of(context).pop(true);
   }
@@ -714,21 +801,17 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
 
     final spMul = widget.speedMul.clamp(0.7, 1.25);
 
-    // gentle damping
     final damp = pow(0.995, dt * 60).toDouble();
     vx *= damp;
     vy *= damp;
 
-    // tiny random drift
     final wobble = 0.010 * spMul;
     vx += (rnd.nextDouble() - 0.5) * wobble * dt;
     vy += (rnd.nextDouble() - 0.5) * wobble * dt;
 
-    // clamp speed
     final sp = sqrt(vx * vx + vy * vy);
     final minSp = 0.04 * spMul;
     final maxSp = 0.12 * spMul;
-
     if (sp < minSp) {
       final k = minSp / max(sp, 1e-9);
       vx *= k;
@@ -743,7 +826,6 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     y += vy * dt;
 
     bool bounced = false;
-
     if (x < 0) {
       x = -x;
       vx = -vx;
@@ -753,7 +835,6 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
       vx = -vx;
       bounced = true;
     }
-
     if (y < 0) {
       y = -y;
       vy = -vy;
@@ -765,20 +846,15 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     }
 
     if (bounced) _maybePlayBounce();
-
     if (mounted) setState(() {});
   }
 
-  /// ==================== CHANGE A: BUILD A SMALL NOISE TILE ====================
   Future<void> _buildNoiseImage() async {
-    // 256x256 tile, sparse bright pixels
     const w = 256;
     const h = 256;
-
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
-    // transparent base
     canvas.drawRect(
       Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
       Paint()..color = const Color(0x00000000),
@@ -787,18 +863,12 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     final r = Random(1337);
     final paint = Paint()..color = const Color(0xFFFFFFFF);
 
-    // tweak density here (higher = more visible grain)
     const dots = 5200;
-
     for (int i = 0; i < dots; i++) {
       final dx = r.nextDouble() * w;
       final dy = r.nextDouble() * h;
-
-      // brightness distribution (mostly faint)
       final a = (r.nextDouble() * r.nextDouble() * 40 + 6).clamp(0, 60).toInt();
       paint.color = Color.fromARGB(a, 255, 255, 255);
-
-      // tiny rects rather than points (better on some GPUs)
       final s = (r.nextDouble() < 0.86) ? 1.0 : 2.0;
       canvas.drawRect(Rect.fromLTWH(dx, dy, s, s), paint);
     }
@@ -819,8 +889,17 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
     super.dispose();
   }
 
+  String _fmtMMSS(int s) {
+    final m = s ~/ 60;
+    final r = s % 60;
+    return '${m.toString().padLeft(2, '0')}:${r.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Requirement #1/#8: small timer on experience screen
+    final remaining = (widget.segundos * (1.0 - controller.value)).ceil().clamp(0, widget.segundos);
+
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
       body: LayoutBuilder(
@@ -828,13 +907,9 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
           final px = x * c.maxWidth;
           final py = y * c.maxHeight;
 
-          // subtle, non-rhythmic breathing
-          final t = controller.value; // 0..1
-          final r = 10 +
-              2.2 * sin(t * pi * 2) +
-              1.2 * sin(t * pi * 0.27 + 1.7);
+          final t = controller.value;
+          final r = 10 + 2.2 * sin(t * pi * 2) + 1.2 * sin(t * pi * 0.27 + 1.7);
 
-          // micro offset for "organic" halo
           final ox = 0.9 * sin(t * pi * 0.13 + 0.6);
           final oy = 0.9 * cos(t * pi * 0.11 + 2.1);
 
@@ -849,11 +924,25 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
                 ),
                 child: const SizedBox.expand(),
               ),
+
+              // Minimal timer — top-right, low opacity (Requirement #1/#8)
+              Positioned(
+                top: 18,
+                right: 18,
+                child: Opacity(
+                  opacity: 0.28,
+                  child: Text(
+                    _fmtMMSS(remaining),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              ),
+
               IgnorePointer(
                 ignoring: true,
                 child: AnimatedOpacity(
                   opacity: showSessionText ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 900),
+                  duration: const Duration(milliseconds: 850),
                   curve: Curves.easeOut,
                   child: Center(
                     child: Padding(
@@ -861,16 +950,15 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
                       child: Text(
                         sessionPhrase,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w300,
-                          color: Colors.white.withOpacity(0.38),
-                        ),
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: Colors.white.withOpacity(0.36),
+                            ),
                       ),
                     ),
                   ),
                 ),
               ),
+
               IgnorePointer(
                 ignoring: true,
                 child: AnimatedOpacity(
@@ -883,11 +971,10 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
                       child: Text(
                         endPhrase,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w300,
-                          color: Colors.white.withOpacity(0.55),
-                        ),
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              fontSize: 18,
+                              color: Colors.white.withOpacity(0.55),
+                            ),
                       ),
                     ),
                   ),
@@ -901,10 +988,9 @@ class _BallSilenceScreenState extends State<BallSilenceScreen>
   }
 }
 
-/// ==================== PAINTER ====================
-/// Implements
-/// - Change A: grain + vignette (visible, elegant)
-/// - Change C: premium bloom glow (layered halos)
+/// =============================================================
+///  PAINTER — improved gradients + grain + premium bloom
+/// =============================================================
 
 class _BallPainter extends CustomPainter {
   final Offset p;
@@ -921,80 +1007,69 @@ class _BallPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // background gradient (ultra subtle)
+    // Requirement #10: nicer background gradients (subtle)
     final bgPaint = Paint()
       ..shader = const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
+          Color(0xFF07070C),
+          Color(0xFF0E0C1A),
           Color(0xFF000000),
-          Color(0xFF050508),
         ],
+        stops: [0.0, 0.55, 1.0],
       ).createShader(Offset.zero & size);
-
     canvas.drawRect(Offset.zero & size, bgPaint);
 
-    /// ==================== CHANGE A: VIGNETTE ====================
+    // Vignette
     final vignette = Paint()
       ..shader = RadialGradient(
         center: Alignment.center,
         radius: 0.92,
-        colors: [
-          const Color(0x00000000),
-          const Color(0x00000000),
-          const Color(0xAA000000),
+        colors: const [
+          Color(0x00000000),
+          Color(0x00000000),
+          Color(0xAA000000),
         ],
         stops: const [0.0, 0.62, 1.0],
       ).createShader(Offset.zero & size);
-
     canvas.drawRect(Offset.zero & size, vignette);
 
-    /// ==================== CHANGE A: GRAIN OVERLAY (TILED) ====================
+    // Grain overlay
     if (noise != null) {
       final shader = ImageShader(
         noise!,
         TileMode.repeated,
         TileMode.repeated,
-        // scale grain a bit larger so it reads nicely on phones
         Matrix4.identity().scaled(1.35, 1.35).storage,
       );
-
       final grainPaint = Paint()
         ..shader = shader
-        ..colorFilter = const ColorFilter.mode(
-          Color(0x1AFFFFFF), // overall intensity of grain
-          BlendMode.srcIn,
-        )
-        ..blendMode = BlendMode.softLight; // subtle, film-like
-
+        ..colorFilter = const ColorFilter.mode(Color(0x1AFFFFFF), BlendMode.srcIn)
+        ..blendMode = BlendMode.softLight;
       canvas.drawRect(Offset.zero & size, grainPaint);
     }
 
-    /// ==================== CHANGE C: PREMIUM BLOOM ====================
-    // bloom core
+    // Premium bloom
     final bloom1 = Paint()
       ..color = Colors.white.withOpacity(0.12)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
-
     final bloom2 = Paint()
       ..color = Colors.white.withOpacity(0.08)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24);
-
     final bloom3 = Paint()
       ..color = Colors.white.withOpacity(0.045)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 44);
 
-    // slightly offset bloom for organic feel
     final p2 = p + haloOffset * 1.2;
+
     canvas.drawCircle(p2, r + 14, bloom3);
     canvas.drawCircle(p2, r + 9, bloom2);
     canvas.drawCircle(p, r + 6, bloom1);
 
-    // dot
     final dot = Paint()..color = Colors.white.withOpacity(0.92);
     canvas.drawCircle(p, r, dot);
 
-    // tiny crisp inner edge (premium)
     final edge = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.8
