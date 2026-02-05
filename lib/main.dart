@@ -1,17 +1,15 @@
 import 'dart:math';
 import 'dart:ui' as ui;
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:audioplayers/audioplayers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-
-  // DO NOT await: returns void
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -35,7 +33,7 @@ SessionMode _modeFromStr(String? s) =>
     (s == 'pomodoro') ? SessionMode.pomodoro : SessionMode.silence;
 
 /// =============================================================
-///  PHRASES (SILENCE) — present-focused
+///  PHRASES
 /// =============================================================
 const List<String> kSilencePhrases = [
   "Just this breath.",
@@ -99,9 +97,6 @@ const List<String> kEndPhrases = [
   "Return when you want.",
 ];
 
-/// =============================================================
-///  PHRASES (POMODORO) — productivity/motivation (inspired, not quotes)
-/// =============================================================
 const List<String> kPomodoroPhrases = [
   "Start small. Start now.",
   "One task. One block.",
@@ -155,7 +150,6 @@ const List<String> kPomodoroPhrases = [
   "Done is powerful.",
 ];
 
-/// Optional ultra-minimal breath cues (rare)
 const List<String> kBreathCues = [
   "Inhale… Exhale…",
   "One breath.",
@@ -200,7 +194,6 @@ LinearGradient kAppGradient() => const LinearGradient(
       stops: [0.0, 0.55, 1.0],
     );
 
-// Experience background differs per mode:
 LinearGradient kSilenceBgGradient() => const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
@@ -293,7 +286,7 @@ class SilenceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    _forceFullscreen(); // ✅ fuerza siempre
+    _forceFullscreen();
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Silence',
@@ -304,7 +297,7 @@ class SilenceApp extends StatelessWidget {
 }
 
 /// =============================================================
-///  START (uses app gradient)
+///  START
 /// =============================================================
 
 class StartScreen extends StatelessWidget {
@@ -932,7 +925,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 }
 
 /// =============================================================
-///  EXPERIENCE: BALL SESSION (Silence + Pomodoro)
+///  EXPERIENCE: BALL SESSION
+///  FIX PRINCIPAL: audio ambiente 100% simple:
+///   - un solo play() (no setSource+play doble)
+///   - releaseMode loop
+///   - AudioContext Android con audioFocus gain + usage media
+///   - si el player cae, lo re-iniciamos 1 vez (timer pequeño)
 /// =============================================================
 
 class BallSessionScreen extends StatefulWidget {
@@ -965,7 +963,7 @@ class BallSessionScreen extends StatefulWidget {
 }
 
 class _BallSessionScreenState extends State<BallSessionScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController controller;
   final rnd = Random();
 
@@ -973,9 +971,8 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   double vx = 0.06, vy = 0.04;
 
   // Audio
-  AudioPlayer? ambientPlayer;
-  AudioPlayer? popPlayer;
-  AudioPlayer? bellPlayer;
+  AudioPlayer? _ambient;
+  AudioPlayer? _bell;
 
   bool showSessionText = true;
   bool showEndText = false;
@@ -1005,6 +1002,7 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     _phases = _buildPhases();
     _setPhase(0);
@@ -1042,14 +1040,33 @@ class _BallSessionScreenState extends State<BallSessionScreen>
             _finishT = Curves.easeOutCubic.transform(_finishController.value));
       });
 
-    _initAudio();
+    _startAudio();
     _scheduleTextFades();
     _buildNoiseImage();
 
     _elapsedMs = 0;
     _lastTickMs = 0;
 
+    _startAudio(); // ✅ aquí
+    _scheduleTextFades();
+    _buildNoiseImage();
+
     controller.forward();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // ✅ Si el sistema pausa audio cuando la app pierde foco, lo manejamos
+    if (!widget.soundOn) return;
+
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _ambient?.pause();
+    } else if (state == AppLifecycleState.resumed) {
+      if (!_paused && !_finishing) {
+        _ensureAmbient();
+      }
+    }
   }
 
   List<_Phase> _buildPhases() {
@@ -1136,7 +1153,8 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     });
   }
 
-  AudioContext _audioContextForMixing() {
+  AudioContext _ctx() {
+    // 🔧 configuración simple y “segura” para que *sí suene* en Android
     return AudioContext(
       android: AudioContextAndroid(
         audioFocus: AndroidAudioFocus.gain,
@@ -1151,44 +1169,47 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     );
   }
 
-  Future<void> _startAmbientLoop() async {
-    final ctx = _audioContextForMixing();
+  // Backward-compatible alias used by some app builds.
+  Future<void> _startAudio() async => _initAudio();
+
+  // Backward-compatible alias used by some app builds.
+  Future<void> _restartAmbient() async => _ensureAmbientPlaying();
+
+  Future<void> _startAmbient({AudioContext? ctx}) async {
+    final context = ctx ?? _audioContextForMixing();
+    final p = AudioPlayer();
+    await p.setPlayerMode(PlayerMode.mediaPlayer);
+    await p.setAudioContext(context);
+    await p.setReleaseMode(ReleaseMode.loop);
     final ambientVol = widget.volume.clamp(0.0, 0.35);
-
-    if (ambientPlayer == null) {
-      final p = AudioPlayer();
-      await p.setPlayerMode(PlayerMode.mediaPlayer);
-      await p.setAudioContext(ctx);
-      await p.setReleaseMode(ReleaseMode.loop);
-      ambientPlayer = p;
-    }
-
-    await ambientPlayer!.setVolume(ambientVol);
-
-    try {
-      await ambientPlayer!.play(
-        AssetSource('sounds/ambient.mp3'),
-        volume: ambientVol,
-      );
-      return;
-    } catch (_) {}
-
-    // Fallback path for some Android builds.
-    await ambientPlayer!.play(
-      AssetSource('assets/sounds/ambient.mp3'),
-      volume: ambientVol,
-    );
+    await p.setVolume(ambientVol);
+    await p.setSource(AssetSource('sounds/ambient.mp3'));
+    await p.resume();
+    ambientPlayer = p;
   }
 
   Future<void> _ensureAmbientPlaying() async {
     if (!widget.soundOn) return;
-    try {
-      if (ambientPlayer == null || ambientPlayer!.state != PlayerState.playing) {
-        await _startAmbientLoop();
-      }
-    } catch (_) {
+    if (ambientPlayer == null) {
       try {
-        await _startAmbientLoop();
+        await _startAmbient();
+      } catch (_) {}
+      return;
+    }
+    try {
+      await ambientPlayer?.resume();
+    } catch (_) {}
+    await Future.delayed(const Duration(milliseconds: 150));
+    if (ambientPlayer?.state != PlayerState.playing) {
+      try {
+        await ambientPlayer?.stop();
+      } catch (_) {}
+      try {
+        await ambientPlayer?.dispose();
+      } catch (_) {}
+      ambientPlayer = null;
+      try {
+        await _startAmbient();
       } catch (_) {}
     }
   }
@@ -1196,36 +1217,31 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   Future<void> _initAudio() async {
     if (!widget.soundOn) return;
 
-    final ctx = _audioContextForMixing();
+    final vol = widget.volume.clamp(0.0, 0.35);
+    final ctx = _ctx();
 
-    // Ambient loop
+    // ✅ Ambient: UN SOLO play() y loop
     try {
-      await _startAmbientLoop();
+      await _startAmbient(ctx: ctx);
       Future.delayed(const Duration(milliseconds: 400), () async {
         if (!mounted) return;
         await _ensureAmbientPlaying();
       });
     } catch (_) {}
+  }
 
-    // Bounce pop
+  Future<void> _ensureAmbient() async {
+    if (!widget.soundOn) return;
+    if (_ambient == null) {
+      await _restartAmbient();
+      return;
+    }
     try {
-      final p2 = AudioPlayer();
-      await p2.setPlayerMode(PlayerMode.mediaPlayer);
-      await p2.setAudioContext(ctx);
-      await p2.setReleaseMode(ReleaseMode.stop);
-      await p2.setSource(AssetSource('sounds/soft_pop.mp3'));
-      popPlayer = p2;
+      await _ambient!.resume();
     } catch (_) {}
-
-    // Bell
-    try {
-      final p3 = AudioPlayer();
-      await p3.setPlayerMode(PlayerMode.mediaPlayer);
-      await p3.setAudioContext(ctx);
-      await p3.setReleaseMode(ReleaseMode.stop);
-      await p3.setSource(AssetSource('sounds/bell.mp3'));
-      bellPlayer = p3;
-    } catch (_) {}
+    if (_ambient!.state != PlayerState.playing) {
+      await _restartAmbient();
+    }
   }
 
   Future<void> _playPop() async {
@@ -1248,22 +1264,22 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   Future<void> _playBell() async {
     if (!widget.soundOn) return;
     if (_paused) return;
-    if (bellPlayer == null) return;
+    if (_bell == null) return;
 
-    final bellVol = (widget.volume * 0.95).clamp(0.0, 0.35);
     try {
-      await bellPlayer!.setVolume(bellVol);
-      await bellPlayer!.seek(Duration.zero);
-      await bellPlayer!.resume();
+      await _bell!.seek(Duration.zero);
+      await _bell!.resume();
     } catch (_) {
       try {
-        await bellPlayer!.play(AssetSource('sounds/bell.mp3'), volume: bellVol);
+        await _bell!.play(
+          AssetSource('sounds/bell.mp3'),
+          volume: (widget.volume * 0.95).clamp(0.0, 0.35),
+        );
       } catch (_) {}
     }
   }
 
   Future<void> _playBounce() async {
-    await _playPop();
     await _ensureAmbientPlaying();
   }
 
@@ -1276,15 +1292,12 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     if (nextPaused) {
       controller.stop(canceled: false);
       try {
-        await ambientPlayer?.pause();
+        await _ambient?.pause();
       } catch (_) {}
     } else {
-      // reset physics timing baseline
       _lastTickMs = 0;
       controller.forward(from: controller.value);
-      try {
-        await ambientPlayer?.resume();
-      } catch (_) {}
+      await _ensureAmbient();
     }
   }
 
@@ -1308,11 +1321,9 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     _elapsedMs = nowMs;
 
     final dt = deltaMs / 1000.0;
-
     final elapsedSec = (_elapsedMs / 1000.0).floor();
 
-    // Phase transitions (Pomodoro): when reaching end of current phase,
-    // we play bell and jump to next phase (timer DISPLAY resets because it shows phase remaining)
+    // Pomodoro phase transitions
     if (_phases.length > 1) {
       if (elapsedSec >= _phaseEndSec && _phaseIndex < _phases.length - 1) {
         _playBell();
@@ -1357,29 +1368,21 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     x += vx * dt;
     y += vy * dt;
 
-    bool bounced = false;
     if (x < 0) {
       x = -x;
       vx = -vx;
-      bounced = true;
     } else if (x > 1) {
       x = 2 - x;
       vx = -vx;
-      bounced = true;
     }
     if (y < 0) {
       y = -y;
       vy = -vy;
-      bounced = true;
     } else if (y > 1) {
       y = 2 - y;
       vy = -vy;
-      bounced = true;
     }
 
-    if (bounced) {
-      _playBounce();
-    }
     if (mounted) setState(() {});
   }
 
@@ -1439,11 +1442,11 @@ class _BallSessionScreenState extends State<BallSessionScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     controller.dispose();
     _finishController.dispose();
-    ambientPlayer?.dispose();
-    popPlayer?.dispose();
-    bellPlayer?.dispose();
+    _ambient?.dispose();
+    _bell?.dispose();
     _noiseImage?.dispose();
     super.dispose();
   }
@@ -1467,8 +1470,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     return HSVColor.fromAHSV(1.0, hue, 0.65, 0.98).toColor();
   }
 
-  /// (3) Pomodoro timer reset per phase:
-  /// We display remaining time in the CURRENT phase (Focus/Break).
   int _remainingPhaseSeconds() {
     final elapsedSec = (_elapsedMs ~/ 1000);
     final rem = _phaseEndSec - elapsedSec;
@@ -1484,7 +1485,7 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   Future<void> _confirmExit() async {
     if (_finishing) return;
     try {
-      await ambientPlayer?.pause();
+      await _ambient?.pause();
     } catch (_) {}
     if (!mounted) return;
     Navigator.of(context).pop(false);
@@ -1534,9 +1535,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   Widget build(BuildContext context) {
     final elapsed = _elapsedMs / 1000.0;
     final baseColor = _baseColorAt(elapsed);
-
-    // (1) Timer top-centered
-    // (3) Timer resets per phase via remainingPhaseSeconds
     final remainingPhase = _remainingPhaseSeconds();
 
     return Scaffold(
@@ -1572,8 +1570,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
                   ),
                   child: const SizedBox.expand(),
                 ),
-
-                // Back arrow
                 Positioned(
                   top: 8,
                   left: 6,
@@ -1589,8 +1585,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
                     ),
                   ),
                 ),
-
-                // ✅ TIMER: centered + top
                 Positioned(
                   top: 8,
                   left: 0,
@@ -1602,7 +1596,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
                     ),
                   ),
                 ),
-
                 Positioned(
                   bottom: 20,
                   left: 0,
@@ -1626,7 +1619,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
                     ),
                   ),
                 ),
-
                 IgnorePointer(
                   ignoring: true,
                   child: AnimatedOpacity(
@@ -1648,7 +1640,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
                     ),
                   ),
                 ),
-
                 IgnorePointer(
                   ignoring: true,
                   child: AnimatedOpacity(
@@ -1671,7 +1662,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
                     ),
                   ),
                 ),
-
                 IgnorePointer(
                   ignoring: true,
                   child: AnimatedOpacity(
@@ -1718,7 +1708,7 @@ class _Phase {
 }
 
 /// =============================================================
-///  PAINTER — premium bg per mode + rotating internal gradients + sheen
+///  PAINTER
 /// =============================================================
 
 class _BallPainter extends CustomPainter {
