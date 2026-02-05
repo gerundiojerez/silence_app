@@ -1040,6 +1040,10 @@ class _BallSessionScreenState extends State<BallSessionScreen>
             _finishT = Curves.easeOutCubic.transform(_finishController.value));
       });
 
+    _startAudio();
+    _scheduleTextFades();
+    _buildNoiseImage();
+
     _elapsedMs = 0;
     _lastTickMs = 0;
 
@@ -1164,6 +1168,12 @@ class _BallSessionScreenState extends State<BallSessionScreen>
       ),
     );
   }
+
+  // Backward-compatible alias used by some app builds.
+  Future<void> _startAudio() async => _initAudio();
+
+  // Backward-compatible alias used by some app builds.
+  Future<void> _restartAmbient() async => _ensureAmbientPlaying();
 
   Future<void> _startAmbient({AudioContext? ctx}) async {
     final context = ctx ?? _audioContextForMixing();
