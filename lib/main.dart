@@ -976,12 +976,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   AudioPlayer? ambientPlayer;
   AudioPlayer? bellPlayer;
 
-  // Bounce SFX using Soundpool (prevents ambient from stopping on Samsung/Android)
-  AudioPlayer? bouncePlayer; // bounce SFX (separado del ambient)
-
-  DateTime _lastBounceSound = DateTime.fromMillisecondsSinceEpoch(0);
-  static const int _minBounceMs = 80;
-
   bool showSessionText = true;
   bool showEndText = false;
   bool showTapHint = true;
@@ -1165,9 +1159,10 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     try {
       final p = AudioPlayer();
       await p.setAudioContext(ctx);
+      await p.setSource(AssetSource('sounds/ambient.mp3')); // <-- NUEVO
       await p.setReleaseMode(ReleaseMode.loop);
       await p.setVolume(widget.volume.clamp(0.0, 0.35));
-      await p.play(AssetSource('sounds/ambient.mp3'));
+      await p.resume(); // <-- en vez de play(...)
       ambientPlayer = p;
     } catch (_) {}
 
@@ -1178,15 +1173,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
       await p3.setReleaseMode(ReleaseMode.stop);
       await p3.setSource(AssetSource('sounds/bell.mp3'));
       bellPlayer = p3;
-    } catch (_) {}
-
-    // Bounce SFX (AudioPlayer separado, sin robar el audio focus)
-    try {
-      final p2 = AudioPlayer();
-      await p2.setAudioContext(ctx);
-      await p2.setReleaseMode(ReleaseMode.stop);
-      await p2.setSource(AssetSource('sounds/soft_pop.mp3'));
-      bouncePlayer = p2;
     } catch (_) {}
   }
 
@@ -1209,29 +1195,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   }
 
   Future<void> _playBounce() async {
-    if (!widget.soundOn) return;
-    if (_paused) return;
-    if (bouncePlayer == null) return;
-
-    final now = DateTime.now();
-    if (now.difference(_lastBounceSound).inMilliseconds < _minBounceMs) return;
-    _lastBounceSound = now;
-
-    final bounceVol = (widget.volume * 0.50).clamp(0.0, 0.35);
-
-    try {
-      await bouncePlayer!.setVolume(bounceVol);
-      await bouncePlayer!.seek(Duration.zero);
-      await bouncePlayer!.resume();
-    } catch (_) {
-      try {
-        await bouncePlayer!.play(
-          AssetSource('sounds/soft_pop.mp3'),
-          volume: bounceVol,
-        );
-      } catch (_) {}
-    }
-
     // ✅ “Seguro Samsung”: si igual cortó el ambient, lo reanudamos al tiro
     try {
       await ambientPlayer?.resume();
@@ -1348,7 +1311,7 @@ class _BallSessionScreenState extends State<BallSessionScreen>
       bounced = true;
     }
 
-    if (bounced) _playBounce();
+    // if (bounced) _playBounce(); // por ahora: sin rebote
     if (mounted) setState(() {});
   }
 
@@ -1411,7 +1374,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     controller.dispose();
     _finishController.dispose();
     ambientPlayer?.dispose();
-    bouncePlayer?.dispose(); // ✅ agrega esto
     bellPlayer?.dispose();
     _noiseImage?.dispose();
     super.dispose();
