@@ -326,7 +326,7 @@ class StartScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Silence',
+                    Text('Silance12',
                         style: Theme.of(context).textTheme.displayLarge),
                     const SizedBox(height: 14),
                     Text(
@@ -1165,7 +1165,46 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     );
   }
 
-  Future<void> _startAudio() async {
+  Future<void> _startAmbient({AudioContext? ctx}) async {
+    final context = ctx ?? _audioContextForMixing();
+    final p = AudioPlayer();
+    await p.setPlayerMode(PlayerMode.mediaPlayer);
+    await p.setAudioContext(context);
+    await p.setReleaseMode(ReleaseMode.loop);
+    final ambientVol = widget.volume.clamp(0.0, 0.35);
+    await p.setVolume(ambientVol);
+    await p.setSource(AssetSource('sounds/ambient.mp3'));
+    await p.resume();
+    ambientPlayer = p;
+  }
+
+  Future<void> _ensureAmbientPlaying() async {
+    if (!widget.soundOn) return;
+    if (ambientPlayer == null) {
+      try {
+        await _startAmbient();
+      } catch (_) {}
+      return;
+    }
+    try {
+      await ambientPlayer?.resume();
+    } catch (_) {}
+    await Future.delayed(const Duration(milliseconds: 150));
+    if (ambientPlayer?.state != PlayerState.playing) {
+      try {
+        await ambientPlayer?.stop();
+      } catch (_) {}
+      try {
+        await ambientPlayer?.dispose();
+      } catch (_) {}
+      ambientPlayer = null;
+      try {
+        await _startAmbient();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _initAudio() async {
     if (!widget.soundOn) return;
 
     final vol = widget.volume.clamp(0.0, 0.35);
@@ -1173,54 +1212,11 @@ class _BallSessionScreenState extends State<BallSessionScreen>
 
     // ✅ Ambient: UN SOLO play() y loop
     try {
-      final p = AudioPlayer(playerId: 'ambient');
-      await p.setPlayerMode(PlayerMode.mediaPlayer);
-      await p.setAudioContext(ctx);
-      await p.setReleaseMode(ReleaseMode.loop);
-      await p.setVolume(vol);
-      await p.play(AssetSource('sounds/ambient.mp3')); // <-- clave
-      _ambient = p;
-
-      // “Watchdog” simple: si no quedó playing, reintenta 1 vez.
-      Future.delayed(const Duration(milliseconds: 350), () async {
+      await _startAmbient(ctx: ctx);
+      Future.delayed(const Duration(milliseconds: 400), () async {
         if (!mounted) return;
-        if (_paused || _finishing) return;
-        if (_ambient?.state != PlayerState.playing) {
-          await _restartAmbient();
-        }
+        await _ensureAmbientPlaying();
       });
-    } catch (e) {
-      // debugPrint('ambient error: $e');
-    }
-
-    // Bell
-    try {
-      final b = AudioPlayer(playerId: 'bell');
-      await b.setPlayerMode(PlayerMode.lowLatency);
-      await b.setAudioContext(ctx);
-      await b.setReleaseMode(ReleaseMode.stop);
-      await b.setVolume((widget.volume * 0.95).clamp(0.0, 0.35));
-      await b.setSource(AssetSource('sounds/bell.mp3'));
-      _bell = b;
-    } catch (_) {}
-  }
-
-  Future<void> _restartAmbient() async {
-    if (!widget.soundOn) return;
-    try {
-      await _ambient?.stop();
-      await _ambient?.dispose();
-    } catch (_) {}
-    _ambient = null;
-
-    try {
-      final p = AudioPlayer(playerId: 'ambient');
-      await p.setPlayerMode(PlayerMode.mediaPlayer);
-      await p.setAudioContext(_ctx());
-      await p.setReleaseMode(ReleaseMode.loop);
-      await p.setVolume(widget.volume.clamp(0.0, 0.35));
-      await p.play(AssetSource('sounds/ambient.mp3'));
-      _ambient = p;
     } catch (_) {}
   }
 
@@ -1254,6 +1250,10 @@ class _BallSessionScreenState extends State<BallSessionScreen>
         );
       } catch (_) {}
     }
+  }
+
+  Future<void> _playBounce() async {
+    await _ensureAmbientPlaying();
   }
 
   Future<void> _togglePause() async {
