@@ -971,8 +971,9 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   double vx = 0.06, vy = 0.04;
 
   // Audio
-  AudioPlayer? _ambient;
-  AudioPlayer? _bell;
+  AudioPlayer? ambientPlayer;
+  AudioPlayer? popPlayer;
+  AudioPlayer? bellPlayer;
 
   bool showSessionText = true;
   bool showEndText = false;
@@ -1169,47 +1170,44 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     );
   }
 
-  // Backward-compatible alias used by some app builds.
-  Future<void> _startAudio() async => _initAudio();
-
-  // Backward-compatible alias used by some app builds.
-  Future<void> _restartAmbient() async => _ensureAmbientPlaying();
-
-  Future<void> _startAmbient({AudioContext? ctx}) async {
-    final context = ctx ?? _audioContextForMixing();
-    final p = AudioPlayer();
-    await p.setPlayerMode(PlayerMode.mediaPlayer);
-    await p.setAudioContext(context);
-    await p.setReleaseMode(ReleaseMode.loop);
+  Future<void> _startAmbientLoop() async {
+    final ctx = _audioContextForMixing();
     final ambientVol = widget.volume.clamp(0.0, 0.35);
-    await p.setVolume(ambientVol);
-    await p.setSource(AssetSource('sounds/ambient.mp3'));
-    await p.resume();
-    ambientPlayer = p;
+
+    if (ambientPlayer == null) {
+      final p = AudioPlayer();
+      await p.setPlayerMode(PlayerMode.mediaPlayer);
+      await p.setAudioContext(ctx);
+      await p.setReleaseMode(ReleaseMode.loop);
+      ambientPlayer = p;
+    }
+
+    await ambientPlayer!.setVolume(ambientVol);
+
+    try {
+      await ambientPlayer!.play(
+        AssetSource('sounds/ambient.mp3'),
+        volume: ambientVol,
+      );
+      return;
+    } catch (_) {}
+
+    // Fallback path for some Android builds.
+    await ambientPlayer!.play(
+      AssetSource('assets/sounds/ambient.mp3'),
+      volume: ambientVol,
+    );
   }
 
   Future<void> _ensureAmbientPlaying() async {
     if (!widget.soundOn) return;
-    if (ambientPlayer == null) {
-      try {
-        await _startAmbient();
-      } catch (_) {}
-      return;
-    }
     try {
-      await ambientPlayer?.resume();
-    } catch (_) {}
-    await Future.delayed(const Duration(milliseconds: 150));
-    if (ambientPlayer?.state != PlayerState.playing) {
+      if (ambientPlayer == null || ambientPlayer!.state != PlayerState.playing) {
+        await _startAmbientLoop();
+      }
+    } catch (_) {
       try {
-        await ambientPlayer?.stop();
-      } catch (_) {}
-      try {
-        await ambientPlayer?.dispose();
-      } catch (_) {}
-      ambientPlayer = null;
-      try {
-        await _startAmbient();
+        await _startAmbientLoop();
       } catch (_) {}
     }
   }
@@ -1222,26 +1220,33 @@ class _BallSessionScreenState extends State<BallSessionScreen>
 
     // ✅ Ambient: UN SOLO play() y loop
     try {
-      await _startAmbient(ctx: ctx);
+      await _startAmbientLoop();
       Future.delayed(const Duration(milliseconds: 400), () async {
         if (!mounted) return;
         await _ensureAmbientPlaying();
       });
     } catch (_) {}
+
+    // Bounce pop
+    try {
+      final p2 = AudioPlayer();
+      await p2.setPlayerMode(PlayerMode.mediaPlayer);
+      await p2.setAudioContext(ctx);
+      await p2.setReleaseMode(ReleaseMode.stop);
+      await p2.setSource(AssetSource('sounds/soft_pop.mp3'));
+      popPlayer = p2;
+    } catch (_) {}
   }
 
-  Future<void> _ensureAmbient() async {
-    if (!widget.soundOn) return;
-    if (_ambient == null) {
-      await _restartAmbient();
-      return;
-    }
+    // Bell
     try {
-      await _ambient!.resume();
+      final p3 = AudioPlayer();
+      await p3.setPlayerMode(PlayerMode.mediaPlayer);
+      await p3.setAudioContext(ctx);
+      await p3.setReleaseMode(ReleaseMode.stop);
+      await p3.setSource(AssetSource('sounds/bell.mp3'));
+      bellPlayer = p3;
     } catch (_) {}
-    if (_ambient!.state != PlayerState.playing) {
-      await _restartAmbient();
-    }
   }
 
   Future<void> _playPop() async {
@@ -1266,6 +1271,7 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     if (_paused) return;
     if (_bell == null) return;
 
+    final bellVol = (widget.volume * 0.95).clamp(0.0, 0.35);
     try {
       await _bell!.seek(Duration.zero);
       await _bell!.resume();
@@ -1280,6 +1286,7 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   }
 
   Future<void> _playBounce() async {
+    await _playPop();
     await _ensureAmbientPlaying();
   }
 
@@ -1383,6 +1390,9 @@ class _BallSessionScreenState extends State<BallSessionScreen>
       vy = -vy;
     }
 
+    if (bounced) {
+      _playBounce();
+    }
     if (mounted) setState(() {});
   }
 
@@ -1445,8 +1455,9 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     WidgetsBinding.instance.removeObserver(this);
     controller.dispose();
     _finishController.dispose();
-    _ambient?.dispose();
-    _bell?.dispose();
+    ambientPlayer?.dispose();
+    popPlayer?.dispose();
+    bellPlayer?.dispose();
     _noiseImage?.dispose();
     super.dispose();
   }
