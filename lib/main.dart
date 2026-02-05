@@ -333,7 +333,7 @@ class StartScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Silence',
+                    Text('Silance12',
                         style: Theme.of(context).textTheme.displayLarge),
                     const SizedBox(height: 14),
                     Text(
@@ -1138,8 +1138,8 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   AudioContext _audioContextForMixing() {
     return AudioContext(
       android: AudioContextAndroid(
-        audioFocus: AndroidAudioFocus.none,
-        usageType: AndroidUsageType.game,
+        audioFocus: AndroidAudioFocus.gain,
+        usageType: AndroidUsageType.media,
         contentType: AndroidContentType.music,
         stayAwake: true,
       ),
@@ -1150,6 +1150,48 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     );
   }
 
+  Future<void> _startAmbientLoop() async {
+    final ctx = _audioContextForMixing();
+    final ambientVol = widget.volume.clamp(0.0, 0.35);
+
+    if (ambientPlayer == null) {
+      final p = AudioPlayer();
+      await p.setPlayerMode(PlayerMode.mediaPlayer);
+      await p.setAudioContext(ctx);
+      await p.setReleaseMode(ReleaseMode.loop);
+      ambientPlayer = p;
+    }
+
+    await ambientPlayer!.setVolume(ambientVol);
+
+    try {
+      await ambientPlayer!.play(
+        AssetSource('sounds/ambient.mp3'),
+        volume: ambientVol,
+      );
+      return;
+    } catch (_) {}
+
+    // Fallback path for some Android builds.
+    await ambientPlayer!.play(
+      AssetSource('assets/sounds/ambient.mp3'),
+      volume: ambientVol,
+    );
+  }
+
+  Future<void> _ensureAmbientPlaying() async {
+    if (!widget.soundOn) return;
+    try {
+      if (ambientPlayer == null || ambientPlayer!.state != PlayerState.playing) {
+        await _startAmbientLoop();
+      }
+    } catch (_) {
+      try {
+        await _startAmbientLoop();
+      } catch (_) {}
+    }
+  }
+
   Future<void> _initAudio() async {
     if (!widget.soundOn) return;
 
@@ -1157,16 +1199,14 @@ class _BallSessionScreenState extends State<BallSessionScreen>
 
     // Ambient loop
     try {
-      final p = AudioPlayer();
-      await p.setAudioContext(ctx);
-      await p.setSource(AssetSource('sounds/ambient.mp3')); // <-- NUEVO
-      await p.setReleaseMode(ReleaseMode.loop);
-      await p.setVolume(widget.volume.clamp(0.0, 0.35));
-      await p.resume(); // <-- en vez de play(...)
-      ambientPlayer = p;
+      await _startAmbientLoop();
+      Future.delayed(const Duration(milliseconds: 400), () async {
+        if (!mounted) return;
+        await _ensureAmbientPlaying();
+      });
     } catch (_) {}
 
-    // Bell (keep on audioplayers)
+    // Bell
     try {
       final p3 = AudioPlayer();
       await p3.setAudioContext(ctx);
@@ -1181,7 +1221,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     if (_paused) return;
     if (bellPlayer == null) return;
 
-    // A bit longer feel: let it ring with higher volume + ensure restart
     final bellVol = (widget.volume * 0.95).clamp(0.0, 0.35);
     try {
       await bellPlayer!.setVolume(bellVol);
@@ -1195,10 +1234,7 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   }
 
   Future<void> _playBounce() async {
-    // ✅ “Seguro Samsung”: si igual cortó el ambient, lo reanudamos al tiro
-    try {
-      await ambientPlayer?.resume();
-    } catch (_) {}
+    await _ensureAmbientPlaying();
   }
 
   Future<void> _togglePause() async {
