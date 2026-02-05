@@ -1244,6 +1244,23 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     }
   }
 
+  Future<void> _playPop() async {
+    if (!widget.soundOn) return;
+    if (_paused) return;
+    final popVol = (widget.volume * 0.75).clamp(0.0, 0.35);
+    try {
+      if (popPlayer == null) {
+        final p = AudioPlayer();
+        await p.setPlayerMode(PlayerMode.mediaPlayer);
+        await p.setAudioContext(_audioContextForMixing());
+        await p.setReleaseMode(ReleaseMode.stop);
+        popPlayer = p;
+      }
+      await popPlayer!.setVolume(popVol);
+      await popPlayer!.play(AssetSource('sounds/soft_pop.mp3'), volume: popVol);
+    } catch (_) {}
+  }
+
   Future<void> _playBell() async {
     if (!widget.soundOn) return;
     if (_paused) return;
