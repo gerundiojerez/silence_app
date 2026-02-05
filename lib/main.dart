@@ -1165,6 +1165,10 @@ class _BallSessionScreenState extends State<BallSessionScreen>
       await p.setVolume(ambientVol);
       await p.setSource(AssetSource('sounds/ambient.mp3'));
       await p.resume();
+      await p.play(
+        AssetSource('sounds/ambient.mp3'),
+        volume: ambientVol,
+      );
       ambientPlayer = p;
       Future.delayed(const Duration(milliseconds: 400), () async {
         if (!mounted) return;
