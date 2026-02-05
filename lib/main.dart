@@ -1196,10 +1196,29 @@ class _BallSessionScreenState extends State<BallSessionScreen>
 
     // Ambient loop
     try {
-      await _startAmbient(ctx: ctx);
+      final p = AudioPlayer();
+      await p.setPlayerMode(PlayerMode.mediaPlayer);
+      await p.setAudioContext(ctx);
+      await p.setReleaseMode(ReleaseMode.loop);
+      final ambientVol = widget.volume.clamp(0.0, 0.35);
+      await p.setVolume(ambientVol);
+      await p.setSource(AssetSource('sounds/ambient.mp3'));
+      await p.resume();
+      await p.play(
+        AssetSource('sounds/ambient.mp3'),
+        volume: ambientVol,
+      );
+      ambientPlayer = p;
       Future.delayed(const Duration(milliseconds: 400), () async {
         if (!mounted) return;
-        await _ensureAmbientPlaying();
+        if (ambientPlayer?.state != PlayerState.playing) {
+          try {
+            await ambientPlayer?.play(
+              AssetSource('sounds/ambient.mp3'),
+              volume: ambientVol,
+            );
+          } catch (_) {}
+        }
       });
     } catch (_) {}
 
