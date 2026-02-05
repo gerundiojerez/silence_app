@@ -1138,8 +1138,8 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   AudioContext _audioContextForMixing() {
     return AudioContext(
       android: AudioContextAndroid(
-        audioFocus: AndroidAudioFocus.none,
-        usageType: AndroidUsageType.game,
+        audioFocus: AndroidAudioFocus.gain,
+        usageType: AndroidUsageType.media,
         contentType: AndroidContentType.music,
         stayAwake: true,
       ),
