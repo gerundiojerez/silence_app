@@ -333,7 +333,7 @@ class StartScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Silence',
+                    Text('Silance12',
                         style: Theme.of(context).textTheme.displayLarge),
                     const SizedBox(height: 14),
                     Text(
@@ -1138,8 +1138,8 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   AudioContext _audioContextForMixing() {
     return AudioContext(
       android: AudioContextAndroid(
-        audioFocus: AndroidAudioFocus.none,
-        usageType: AndroidUsageType.game,
+        audioFocus: AndroidAudioFocus.gain,
+        usageType: AndroidUsageType.media,
         contentType: AndroidContentType.music,
         stayAwake: true,
       ),
@@ -1158,15 +1158,17 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     // Ambient loop
     try {
       final p = AudioPlayer();
+      await p.setPlayerMode(PlayerMode.mediaPlayer);
       await p.setAudioContext(ctx);
-      await p.setSource(AssetSource('sounds/ambient.mp3')); // <-- NUEVO
       await p.setReleaseMode(ReleaseMode.loop);
-      await p.setVolume(widget.volume.clamp(0.0, 0.35));
-      await p.resume(); // <-- en vez de play(...)
+      final ambientVol = widget.volume.clamp(0.0, 0.35);
+      await p.setVolume(ambientVol);
+      await p.setSource(AssetSource('sounds/ambient.mp3'));
+      await p.resume();
       ambientPlayer = p;
     } catch (_) {}
 
-    // Bell (keep on audioplayers)
+    // Bell
     try {
       final p3 = AudioPlayer();
       await p3.setAudioContext(ctx);
@@ -1181,7 +1183,6 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     if (_paused) return;
     if (bellPlayer == null) return;
 
-    // A bit longer feel: let it ring with higher volume + ensure restart
     final bellVol = (widget.volume * 0.95).clamp(0.0, 0.35);
     try {
       await bellPlayer!.setVolume(bellVol);
@@ -1195,7 +1196,7 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   }
 
   Future<void> _playBounce() async {
-    // ✅ “Seguro Samsung”: si igual cortó el ambient, lo reanudamos al tiro
+    if (!widget.soundOn) return;
     try {
       await ambientPlayer?.resume();
     } catch (_) {}
