@@ -1138,8 +1138,8 @@ class _BallSessionScreenState extends State<BallSessionScreen>
   AudioContext _audioContextForMixing() {
     return AudioContext(
       android: AudioContextAndroid(
-        audioFocus: AndroidAudioFocus.none,
-        usageType: AndroidUsageType.game,
+        audioFocus: AndroidAudioFocus.gain,
+        usageType: AndroidUsageType.media,
         contentType: AndroidContentType.music,
         stayAwake: true,
       ),
@@ -1158,12 +1158,25 @@ class _BallSessionScreenState extends State<BallSessionScreen>
     // Ambient loop
     try {
       final p = AudioPlayer();
+      await p.setPlayerMode(PlayerMode.mediaPlayer);
       await p.setAudioContext(ctx);
-      await p.setSource(AssetSource('sounds/ambient.mp3')); // <-- NUEVO
       await p.setReleaseMode(ReleaseMode.loop);
-      await p.setVolume(widget.volume.clamp(0.0, 0.35));
-      await p.resume(); // <-- en vez de play(...)
+      final ambientVol = widget.volume.clamp(0.0, 0.35);
+      await p.setVolume(ambientVol);
+      await p.setSource(AssetSource('sounds/ambient.mp3'));
+      await p.resume();
       ambientPlayer = p;
+      Future.delayed(const Duration(milliseconds: 400), () async {
+        if (!mounted) return;
+        if (ambientPlayer?.state != PlayerState.playing) {
+          try {
+            await ambientPlayer?.play(
+              AssetSource('sounds/ambient.mp3'),
+              volume: ambientVol,
+            );
+          } catch (_) {}
+        }
+      });
     } catch (_) {}
 
     // Bell (keep on audioplayers)
